@@ -1,0 +1,1819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz(T) — Live Q&A and Polls</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --navy:   #1e2d78;
+    --navy-2: #2a3a8e;
+    --cyan:   #00adef;
+    --cyan-2: #0098d1;
+    --green:  #4dbb45;
+    --green-2:#3ea537;
+    --red:    #e8302a;
+    --amber:  #f0a500;
+    --ink:    #1a1a2e;
+    --bg:     #f4f6fb;
+    --bg2:    #eaecf5;
+    --border: #c8ccdf;
+    --border-2:#9ea3c7;
+    --muted:  #6b7199;
+    --white:  #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    font-family: 'Sarabun', sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  input, textarea, select { font-family: inherit; }
+
+  /* ───────── Top header ───────── */
+  .header {
+    background: var(--navy);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    height: 60px;
+    gap: 16px;
+    border-bottom: 3px solid var(--cyan);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header-mark {
+    width: 32px;
+    height: 32px;
+    background: var(--cyan);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: -0.5px;
+  }
+  .header-title {
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+  .header-divider {
+    width: 1px;
+    height: 28px;
+    background: rgba(255,255,255,0.18);
+  }
+  .header-session {
+    color: rgba(255,255,255,0.75);
+    font-size: 13px;
+  }
+  .header-session strong {
+    color: white;
+    font-family: 'Sarabun', monospace;
+    letter-spacing: 1px;
+    font-weight: 600;
+    margin-left: 6px;
+  }
+  .header-spacer { flex: 1; }
+  .role-switcher {
+    display: flex;
+    gap: 0;
+    background: rgba(255,255,255,0.08);
+    padding: 4px;
+    border-radius: 8px;
+  }
+  .role-btn {
+    padding: 6px 14px;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.6);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 5px;
+    transition: all 0.15s;
+  }
+  .role-btn:hover { color: white; }
+  .role-btn.active {
+    background: var(--cyan);
+    color: white;
+  }
+
+  /* ───────── App container ───────── */
+  .app { padding: 0; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ═════════════════════════════════
+     HOST DASHBOARD
+     ═════════════════════════════════ */
+  .host-layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+    padding: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) {
+    .host-layout { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fafbfe;
+  }
+  .panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .panel-count {
+    background: var(--bg2);
+    color: var(--muted);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 600;
+  }
+  .panel-count.warn { background: #fff4e0; color: #8a5a00; }
+  .panel-count.live { background: #e0f7ff; color: #006fa3; }
+  .panel-body { padding: 16px; }
+  .panel-body.dense { padding: 0; }
+
+  /* Host tabs */
+  .host-tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--bg2);
+    padding: 4px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+  }
+  .host-tab {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 5px;
+    transition: all 0.15s;
+  }
+  .host-tab:hover { color: var(--navy); }
+  .host-tab.active {
+    background: white;
+    color: var(--navy);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(30,45,120,0.08);
+  }
+
+  /* Question card (host) */
+  .q-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    transition: border-color 0.15s;
+  }
+  .q-card:hover { border-color: var(--border-2); }
+  .q-card.pending { border-left: 3px solid var(--amber); }
+  .q-card.live { border-left: 3px solid var(--cyan); }
+  .q-card.archived { border-left: 3px solid var(--green); opacity: 0.75; }
+
+  .q-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .q-author { color: var(--muted); font-weight: 500; }
+  .q-time { color: var(--muted); font-size: 11px; }
+  .q-status-pill {
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .q-status-pill.pending { background: #fff4e0; color: #8a5a00; }
+  .q-status-pill.live { background: #e0f7ff; color: #006fa3; }
+  .q-status-pill.archived { background: #e8f5e7; color: #2a7a26; }
+
+  .q-body {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .q-votes {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 48px;
+    padding: 8px 0;
+    background: var(--bg);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .q-votes-num {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1;
+  }
+  .q-votes-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+  .q-text {
+    flex: 1;
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink);
+    word-wrap: break-word;
+  }
+  .q-text-input {
+    flex: 1;
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink);
+    padding: 6px 10px;
+    border: 1px dashed var(--cyan);
+    border-radius: 4px;
+    background: #f8feff;
+    width: 100%;
+    resize: vertical;
+    font-family: inherit;
+  }
+  .q-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* Buttons */
+  .btn {
+    padding: 7px 14px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.12s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn-primary {
+    background: var(--cyan);
+    color: white;
+    border-color: var(--cyan);
+  }
+  .btn-primary:hover { background: var(--cyan-2); }
+  .btn-success {
+    background: var(--green);
+    color: white;
+    border-color: var(--green);
+  }
+  .btn-success:hover { background: var(--green-2); }
+  .btn-danger {
+    background: white;
+    color: var(--red);
+    border-color: var(--red);
+  }
+  .btn-danger:hover { background: var(--red); color: white; }
+  .btn-outline {
+    background: white;
+    color: var(--navy);
+    border-color: var(--border);
+  }
+  .btn-outline:hover { border-color: var(--navy); }
+  .btn-navy {
+    background: var(--navy);
+    color: white;
+    border-color: var(--navy);
+  }
+  .btn-navy:hover { background: var(--navy-2); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-block { display: flex; width: 100%; justify-content: center; }
+
+  /* Empty state */
+  .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .empty-state-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--bg2);
+    border-radius: 50%;
+    margin: 0 auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .empty-state-icon svg { width: 24px; height: 24px; opacity: 0.6; }
+  .empty-state-text { font-size: 14px; }
+  .empty-state-hint { font-size: 12px; margin-top: 4px; opacity: 0.7; }
+
+  /* Side panel (right column) */
+  .side-section {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .side-section-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: #fafbfe;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--navy);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .side-section-body { padding: 14px 16px; }
+
+  .stat-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--bg2);
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { font-size: 13px; color: var(--muted); }
+  .stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--bg2);
+  }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-label { font-size: 13px; color: var(--ink); }
+  .toggle-hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .toggle {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    background: var(--border);
+    border-radius: 12px;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    transition: left 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  }
+  .toggle.on { background: var(--green); }
+  .toggle.on::after { left: 18px; }
+
+  /* QR area */
+  .qr-block {
+    text-align: center;
+    padding: 16px;
+  }
+  .qr-canvas {
+    width: 176px;
+    height: 176px;
+    background: white;
+    margin: 0 auto 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .qr-canvas img, .qr-canvas canvas { display: block; max-width: 100%; max-height: 100%; }
+  .qr-url {
+    font-family: 'Sarabun', monospace;
+    font-size: 11px;
+    color: var(--navy);
+    background: var(--bg);
+    padding: 6px 10px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-top: 4px;
+    word-break: break-all;
+    max-width: 220px;
+  }
+  .qr-url-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'Sarabun', monospace;
+    margin-top: 8px;
+    color: var(--ink);
+  }
+  .qr-url-input:focus { outline: none; border-color: var(--cyan); }
+
+  /* ───── Polls section ───── */
+  .poll-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .poll-card.live { border-left: 3px solid var(--cyan); }
+  .poll-card.draft { border-left: 3px solid var(--muted); opacity: 0.85; }
+  .poll-card.closed { border-left: 3px solid var(--green); opacity: 0.75; }
+
+  .poll-question {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  .poll-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .poll-option-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--bg);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+  .poll-option-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, #d0f0fd 0%, #e8f7ff 100%);
+    transition: width 0.4s ease;
+    z-index: 0;
+  }
+  .poll-option-text {
+    flex: 1;
+    font-size: 14px;
+    color: var(--ink);
+    z-index: 1;
+    position: relative;
+  }
+  .poll-option-count {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    z-index: 1;
+    position: relative;
+  }
+  .poll-option-pct {
+    font-size: 12px;
+    color: var(--muted);
+    z-index: 1;
+    position: relative;
+    min-width: 40px;
+    text-align: right;
+  }
+  .poll-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    padding-top: 10px;
+    border-top: 1px solid var(--bg2);
+  }
+
+  /* Create poll form */
+  .create-poll {
+    background: #fafbfe;
+    border: 1px dashed var(--border-2);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .form-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .form-input, .form-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+    color: var(--ink);
+    transition: border-color 0.15s;
+  }
+  .form-input:focus, .form-textarea:focus {
+    outline: none;
+    border-color: var(--cyan);
+  }
+  .form-textarea { resize: vertical; min-height: 70px; }
+  .poll-option-input {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .poll-option-input input { flex: 1; }
+  .icon-btn {
+    width: 32px; height: 32px;
+    border: 1px solid var(--border);
+    background: white;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+  }
+  .icon-btn:hover { color: var(--red); border-color: var(--red); }
+  .form-row { display: flex; gap: 10px; margin-top: 12px; }
+
+  /* ═════════════════════════════════
+     PARTICIPANT VIEW (Mobile)
+     ═════════════════════════════════ */
+  .participant-wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  .session-banner {
+    background: var(--navy);
+    color: white;
+    padding: 16px 18px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    border-left: 3px solid var(--cyan);
+  }
+  .session-banner-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .session-banner-meta {
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+    font-family: 'Sarabun', monospace;
+    letter-spacing: 1px;
+  }
+
+  .participant-tabs {
+    display: flex;
+    gap: 2px;
+    background: white;
+    border: 1px solid var(--border);
+    padding: 4px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+  }
+  .p-tab {
+    flex: 1;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 5px;
+    transition: all 0.15s;
+  }
+  .p-tab.active {
+    background: var(--navy);
+    color: white;
+  }
+
+  .p-section {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .p-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  .p-q-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .vote-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    padding: 8px 6px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .vote-btn:hover { border-color: var(--cyan); }
+  .vote-btn.voted {
+    background: var(--cyan);
+    border-color: var(--cyan);
+    color: white;
+  }
+  .vote-btn.voted .vote-num,
+  .vote-btn.voted .vote-arrow svg { color: white; }
+  .vote-arrow { color: var(--muted); height: 14px; line-height: 0; }
+  .vote-arrow svg { width: 14px; height: 14px; }
+  .vote-num { font-size: 15px; font-weight: 700; color: var(--navy); line-height: 1.2; }
+
+  .p-q-content { flex: 1; }
+  .p-q-text { font-size: 14px; line-height: 1.5; color: var(--ink); }
+  .p-q-author { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  /* Participant poll */
+  .p-poll-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: all 0.15s;
+    width: 100%;
+    text-align: left;
+    color: var(--ink);
+    font-size: 14px;
+  }
+  .p-poll-option:hover { border-color: var(--cyan); background: #f8feff; }
+  .p-poll-option.selected {
+    background: var(--cyan);
+    color: white;
+    border-color: var(--cyan);
+  }
+  .p-poll-option-radio {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .p-poll-option.selected .p-poll-option-radio {
+    border-color: white;
+  }
+  .p-poll-option.selected .p-poll-option-radio::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    background: white;
+    border-radius: 50%;
+  }
+
+  .p-submit-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--ink);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    transition: transform 0.3s ease;
+    z-index: 1000;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--green); }
+
+  /* ═════════════════════════════════
+     PROJECTOR VIEW
+     ═════════════════════════════════ */
+  .projector {
+    background: linear-gradient(180deg, var(--navy) 0%, #131e54 100%);
+    color: white;
+    min-height: calc(100vh - 60px);
+    padding: 32px 48px;
+  }
+  .proj-header {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--cyan);
+    margin-bottom: 28px;
+  }
+  .proj-bar {
+    width: 6px;
+    height: 38px;
+    background: var(--cyan);
+    border-radius: 3px;
+  }
+  .proj-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: white;
+    letter-spacing: 0.3px;
+  }
+  .proj-spacer { flex: 1; }
+  .proj-join {
+    background: white;
+    color: var(--navy);
+    padding: 12px 20px;
+    border-radius: 8px;
+    text-align: center;
+  }
+  .proj-join-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .proj-join-code {
+    font-family: 'Sarabun', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--navy);
+  }
+
+  .proj-section-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .proj-section-btn {
+    padding: 8px 18px;
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.7);
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .proj-section-btn.active {
+    background: var(--cyan);
+    color: white;
+  }
+
+  .proj-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .proj-q {
+    background: rgba(255,255,255,0.06);
+    border-left: 4px solid var(--cyan);
+    border-radius: 0 8px 8px 0;
+    padding: 18px 22px;
+    display: flex;
+    gap: 18px;
+    align-items: center;
+  }
+  .proj-q.top {
+    background: rgba(0,173,239,0.18);
+    border-left-color: white;
+  }
+  .proj-vote {
+    background: var(--cyan);
+    color: white;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 22px;
+    font-weight: 700;
+    min-width: 64px;
+    text-align: center;
+  }
+  .proj-q.top .proj-vote { background: white; color: var(--navy); }
+  .proj-q-text {
+    font-size: 19px;
+    line-height: 1.4;
+    flex: 1;
+  }
+  .proj-q-author {
+    font-size: 13px;
+    opacity: 0.55;
+    margin-top: 6px;
+  }
+  .proj-empty {
+    text-align: center;
+    padding: 80px 20px;
+    color: rgba(255,255,255,0.5);
+    font-size: 18px;
+  }
+
+  .proj-poll {
+    background: rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 28px 32px;
+  }
+  .proj-poll-q {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 22px;
+  }
+  .proj-poll-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .proj-poll-label {
+    width: 200px;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .proj-poll-bar-bg {
+    flex: 1;
+    height: 36px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+  .proj-poll-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, var(--cyan) 0%, #4dd0f7 100%);
+    transition: width 0.6s ease;
+    border-radius: 6px;
+  }
+  .proj-poll-num {
+    width: 80px;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* Footer for projector */
+  .proj-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 32px;
+    background: rgba(0,0,0,0.25);
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+    text-align: center;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .proj-footer span {
+    color: var(--cyan);
+    font-family: 'Sarabun', monospace;
+    margin-left: 8px;
+  }
+
+  /* Demo notice */
+  .demo-notice {
+    background: #fff8e1;
+    border-bottom: 1px solid #f0c068;
+    color: #6b4900;
+    font-size: 12px;
+    padding: 8px 24px;
+    text-align: center;
+  }
+  .demo-notice strong { color: #4a3300; }
+
+  /* Reset session button */
+  .reset-link {
+    background: none;
+    border: none;
+    color: var(--red);
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Demo notice (will be hidden in production) -->
+<div class="demo-notice" id="demo-notice">
+  <strong>Demo mode:</strong> Data is stored in your browser only (localStorage). Open this file in 2 tabs to see Host + Participant + Projector update each other in real time.
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-brand">
+    <div class="header-mark">QT</div>
+    <div class="header-title">Quiz(T) <span style="font-weight: 400; opacity: 0.6; font-size: 13px; margin-left: 6px;">live Q&A and polls</span></div>
+  </div>
+  <div class="header-divider"></div>
+  <div class="header-session">
+    Session: <strong id="header-session-code">QT-Q3-2026</strong>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="role-switcher">
+    <button class="role-btn active" data-view="host">Host</button>
+    <button class="role-btn" data-view="participant">Participant</button>
+    <button class="role-btn" data-view="projector">Projector</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- ═══ HOST VIEW ═══ -->
+  <div class="view active" id="view-host">
+    <div class="host-layout">
+      <!-- Left: questions and polls -->
+      <div>
+        <div class="host-tabs">
+          <button class="host-tab active" data-host-tab="questions">Questions</button>
+          <button class="host-tab" data-host-tab="polls">Polls</button>
+        </div>
+
+        <!-- Questions tab -->
+        <div id="host-questions">
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">Pending moderation</div>
+              <div class="panel-count warn" id="pending-count">0</div>
+            </div>
+            <div class="panel-body" id="pending-list"></div>
+          </div>
+
+          <div style="height: 16px;"></div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">Live questions</div>
+              <div class="panel-count live" id="live-count">0</div>
+              <div style="flex: 1;"></div>
+              <select id="sort-questions" class="form-input" style="width: auto; padding: 5px 10px; font-size: 12px;">
+                <option value="votes">Most voted</option>
+                <option value="newest">Newest first</option>
+              </select>
+            </div>
+            <div class="panel-body" id="live-list"></div>
+          </div>
+
+          <div style="height: 16px;"></div>
+
+          <details class="panel" style="background: white;">
+            <summary class="panel-header" style="cursor: pointer; list-style: none;">
+              <div class="panel-title">Archived</div>
+              <div class="panel-count" id="archived-count">0</div>
+            </summary>
+            <div class="panel-body" id="archived-list"></div>
+          </details>
+        </div>
+
+        <!-- Polls tab -->
+        <div id="host-polls" style="display: none;">
+          <div class="create-poll">
+            <div style="font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Create new poll</div>
+            <div style="margin-bottom: 12px;">
+              <label class="form-label">Question</label>
+              <input class="form-input" id="new-poll-q" placeholder="e.g. Which area should we prioritize for R&D?" />
+            </div>
+            <div>
+              <label class="form-label">Options</label>
+              <div id="new-poll-options">
+                <div class="poll-option-input">
+                  <input class="form-input" placeholder="Option 1" />
+                  <button class="icon-btn" onclick="removePollOption(this)">×</button>
+                </div>
+                <div class="poll-option-input">
+                  <input class="form-input" placeholder="Option 2" />
+                  <button class="icon-btn" onclick="removePollOption(this)">×</button>
+                </div>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="addPollOption()" style="margin-top: 4px;">+ Add option</button>
+            </div>
+            <div class="form-row">
+              <button class="btn btn-success" onclick="createPoll(true)">Create & launch</button>
+              <button class="btn btn-outline" onclick="createPoll(false)">Save as draft</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">All polls</div>
+              <div class="panel-count" id="polls-count">0</div>
+            </div>
+            <div class="panel-body" id="polls-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: stats, settings, QR -->
+      <div>
+        <div class="side-section">
+          <div class="side-section-header">Session stats</div>
+          <div class="side-section-body">
+            <div class="stat-row">
+              <div class="stat-label">Total questions</div>
+              <div class="stat-value" id="stat-total-q">0</div>
+            </div>
+            <div class="stat-row">
+              <div class="stat-label">Live now</div>
+              <div class="stat-value" id="stat-live-q">0</div>
+            </div>
+            <div class="stat-row">
+              <div class="stat-label">Total upvotes</div>
+              <div class="stat-value" id="stat-votes">0</div>
+            </div>
+            <div class="stat-row">
+              <div class="stat-label">Active polls</div>
+              <div class="stat-value" id="stat-polls">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="side-section">
+          <div class="side-section-header">Settings</div>
+          <div class="side-section-body">
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-label">Pre-moderation</div>
+                <div class="toggle-hint">Approve questions before they go live</div>
+              </div>
+              <button class="toggle on" id="toggle-mod" onclick="toggleSetting('moderation', this)"></button>
+            </div>
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-label">Allow anonymous</div>
+                <div class="toggle-hint">Let people submit without a name</div>
+              </div>
+              <button class="toggle on" id="toggle-anon" onclick="toggleSetting('anonymous', this)"></button>
+            </div>
+            <button class="reset-link" onclick="resetSession()">⟲ Reset all session data</button>
+          </div>
+        </div>
+
+        <div class="side-section">
+          <div class="side-section-header">Join code</div>
+          <div class="qr-block">
+            <div class="qr-canvas" id="qr-canvas"></div>
+            <div style="font-size: 11px; color: var(--muted); margin-bottom: 4px;">Scan to join from phone</div>
+            <div class="qr-url" id="qr-url-display">https://quizt.app/QT-Q3-2026</div>
+            <input class="qr-url-input" id="qr-url-input" placeholder="Enter your join URL..." />
+            <div style="font-size: 10px; color: var(--muted); margin-top: 6px;">Edit URL above and QR updates automatically</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PARTICIPANT VIEW ═══ -->
+  <div class="view" id="view-participant">
+    <div class="participant-wrap">
+      <div class="session-banner">
+        <div class="session-banner-title">Q3 2026 All-Hands</div>
+        <div class="session-banner-meta">SESSION: QT-Q3-2026</div>
+      </div>
+
+      <div class="participant-tabs">
+        <button class="p-tab active" data-p-tab="ask">Ask</button>
+        <button class="p-tab" data-p-tab="vote">Vote on questions</button>
+        <button class="p-tab" data-p-tab="polls">Polls</button>
+      </div>
+
+      <!-- Ask tab -->
+      <div id="p-ask">
+        <div class="p-submit-card">
+          <div class="p-section-title">Ask a question</div>
+          <textarea class="form-textarea" id="p-question-text" placeholder="Type your question here..." maxlength="280"></textarea>
+          <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; margin-bottom: 12px;">
+            <input class="form-input" id="p-name" placeholder="Your name (optional)" maxlength="40" style="flex: 1;" />
+          </div>
+          <button class="btn btn-primary btn-block" onclick="submitQuestion()">Submit</button>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 8px; text-align: center;">
+            Your question will appear after the host approves it
+          </div>
+        </div>
+      </div>
+
+      <!-- Vote tab -->
+      <div id="p-vote" style="display: none;">
+        <div class="p-section">
+          <div class="p-section-title">Live questions — tap ▲ to upvote</div>
+          <div id="p-questions-list"></div>
+        </div>
+      </div>
+
+      <!-- Polls tab -->
+      <div id="p-polls" style="display: none;">
+        <div id="p-polls-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PROJECTOR VIEW ═══ -->
+  <div class="view" id="view-projector">
+    <div class="projector">
+      <div class="proj-header">
+        <div class="proj-bar"></div>
+        <div class="proj-title">Q3 2026 All-Hands — Live Q&A</div>
+        <div class="proj-spacer"></div>
+        <div class="proj-join">
+          <div class="proj-join-label">Join at quizt.app</div>
+          <div class="proj-join-code">QT-Q3-2026</div>
+        </div>
+      </div>
+
+      <div class="proj-section-tabs">
+        <button class="proj-section-btn active" data-proj-tab="questions">Questions</button>
+        <button class="proj-section-btn" data-proj-tab="poll">Active poll</button>
+      </div>
+
+      <div id="proj-questions"></div>
+      <div id="proj-poll" style="display: none;"></div>
+    </div>
+    <div class="proj-footer">Powered by Quiz(T) · Join at <span>quizt.app/QT-Q3-2026</span></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   Quiz(T) — Single-file demo with localStorage persistence
+   When ready for production: swap the storage layer below for
+   Supabase calls. Everything else stays the same.
+   ═══════════════════════════════════════════════════════════════ */
+
+// ── Storage layer (swap this block for Supabase later) ──
+const STORAGE_KEY = 'quizt_session_v1';
+const VOTES_KEY = 'quizt_votes_v1';
+const POLL_VOTES_KEY = 'quizt_pollvotes_v1';
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return getDefaultState();
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // Trigger storage event in other tabs
+  localStorage.setItem(STORAGE_KEY + '_ping', Date.now());
+}
+
+function getDefaultState() {
+  return {
+    sessionCode: 'QT-Q3-2026',
+    sessionTitle: 'Q3 2026 All-Hands',
+    settings: {
+      moderation: true,
+      anonymous: true
+    },
+    questions: [
+      { id: 1, text: 'When will the budget allocation for next fiscal year be announced?', author: 'Faes', votes: 8, status: 'live', createdAt: Date.now() - 600000 },
+      { id: 2, text: 'Will the new dashboard integrate with our existing reporting tools?', author: 'Anonymous', votes: 12, status: 'live', createdAt: Date.now() - 480000 },
+      { id: 3, text: 'Can we get more clarity on resource allocation across the team?', author: 'Aeng', votes: 5, status: 'live', createdAt: Date.now() - 300000 }
+    ],
+    polls: [
+      {
+        id: 1,
+        question: 'Which R&D area should be our top priority next quarter?',
+        options: [
+          { id: 'a', text: 'Renewable energy storage', votes: 28 },
+          { id: 'b', text: 'Carbon capture technology', votes: 19 },
+          { id: 'c', text: 'Smart grid integration', votes: 15 },
+          { id: 'd', text: 'Hydrogen production', votes: 22 }
+        ],
+        status: 'live',
+        createdAt: Date.now() - 200000
+      }
+    ],
+    nextQuestionId: 4,
+    nextPollId: 2,
+    activePollId: 1,
+    projectorSection: 'questions'
+  };
+}
+
+function loadVotes() {
+  try { return JSON.parse(localStorage.getItem(VOTES_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+function saveVotes(v) { localStorage.setItem(VOTES_KEY, JSON.stringify(v)); }
+
+function loadPollVotes() {
+  try { return JSON.parse(localStorage.getItem(POLL_VOTES_KEY) || '{}'); }
+  catch(e) { return {}; }
+}
+function savePollVotes(v) { localStorage.setItem(POLL_VOTES_KEY, JSON.stringify(v)); }
+
+// ── State ──
+let state = loadState();
+let myVotes = loadVotes();
+let myPollVotes = loadPollVotes();
+
+// ── Utility ──
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function timeAgo(ts) {
+  const sec = Math.floor((Date.now() - ts) / 1000);
+  if (sec < 60) return 'just now';
+  if (sec < 3600) return Math.floor(sec/60) + 'm ago';
+  if (sec < 86400) return Math.floor(sec/3600) + 'h ago';
+  return Math.floor(sec/86400) + 'd ago';
+}
+function showToast(msg, success) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (success ? ' success' : '');
+  setTimeout(() => t.className = 'toast', 2200);
+}
+
+// ── View switching ──
+document.querySelectorAll('.role-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.role-btn').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+    render();
+  });
+});
+
+document.querySelectorAll('.host-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.host-tab').forEach(x => x.classList.remove('active'));
+    btn.classList.add('active');
+    const isQ = btn.dataset.hostTab === 'questions';
+    document.getElementById('host-questions').style.display = isQ ? 'block' : 'none';
+    document.getElementById('host-polls').style.display = isQ ? 'none' : 'block';
+  });
+});
+
+document.querySelectorAll('.p-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.p-tab').forEach(x => x.classList.remove('active'));
+    btn.classList.add('active');
+    ['ask','vote','polls'].forEach(t => {
+      document.getElementById('p-' + t).style.display = t === btn.dataset.pTab ? 'block' : 'none';
+    });
+  });
+});
+
+document.querySelectorAll('.proj-section-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.proj-section-btn').forEach(x => x.classList.remove('active'));
+    btn.classList.add('active');
+    state.projectorSection = btn.dataset.projTab;
+    document.getElementById('proj-questions').style.display = btn.dataset.projTab === 'questions' ? 'block' : 'none';
+    document.getElementById('proj-poll').style.display = btn.dataset.projTab === 'poll' ? 'block' : 'none';
+    saveState();
+    render();
+  });
+});
+
+document.getElementById('sort-questions').addEventListener('change', render);
+
+// ── Settings ──
+function toggleSetting(key, btn) {
+  state.settings[key] = !state.settings[key];
+  btn.classList.toggle('on', state.settings[key]);
+  saveState();
+}
+
+// ── Question actions (host) ──
+function approveQuestion(id) {
+  const q = state.questions.find(x => x.id === id);
+  if (q) { q.status = 'live'; saveState(); render(); }
+}
+function rejectQuestion(id) {
+  state.questions = state.questions.filter(x => x.id !== id);
+  saveState(); render();
+}
+function archiveQuestion(id) {
+  const q = state.questions.find(x => x.id === id);
+  if (q) { q.status = 'archived'; saveState(); render(); }
+}
+function unarchiveQuestion(id) {
+  const q = state.questions.find(x => x.id === id);
+  if (q) { q.status = 'live'; saveState(); render(); }
+}
+function startEditQuestion(id) {
+  const q = state.questions.find(x => x.id === id);
+  if (!q) return;
+  q._editing = true;
+  render();
+}
+function saveEditQuestion(id) {
+  const q = state.questions.find(x => x.id === id);
+  if (!q) return;
+  const ta = document.getElementById('edit-q-' + id);
+  if (ta && ta.value.trim()) {
+    q.text = ta.value.trim();
+  }
+  q._editing = false;
+  saveState(); render();
+}
+
+// ── Question submission (participant) ──
+function submitQuestion() {
+  const text = document.getElementById('p-question-text').value.trim();
+  const name = document.getElementById('p-name').value.trim();
+  if (!text) { showToast('Please type a question'); return; }
+  if (!name && !state.settings.anonymous) { showToast('Name required'); return; }
+  state.questions.push({
+    id: state.nextQuestionId++,
+    text,
+    author: name || 'Anonymous',
+    votes: 0,
+    status: state.settings.moderation ? 'pending' : 'live',
+    createdAt: Date.now()
+  });
+  document.getElementById('p-question-text').value = '';
+  saveState();
+  render();
+  showToast(state.settings.moderation ? 'Submitted — waiting for approval' : 'Submitted — now live!', true);
+}
+
+// ── Voting (participant) ──
+function toggleVote(id) {
+  const q = state.questions.find(x => x.id === id);
+  if (!q) return;
+  const idx = myVotes.indexOf(id);
+  if (idx >= 0) {
+    myVotes.splice(idx, 1);
+    q.votes = Math.max(0, q.votes - 1);
+  } else {
+    myVotes.push(id);
+    q.votes++;
+  }
+  saveVotes(myVotes);
+  saveState();
+  render();
+}
+
+// ── Polls ──
+function addPollOption() {
+  const div = document.createElement('div');
+  div.className = 'poll-option-input';
+  const idx = document.querySelectorAll('#new-poll-options .poll-option-input').length + 1;
+  div.innerHTML = `<input class="form-input" placeholder="Option ${idx}" /><button class="icon-btn" onclick="removePollOption(this)">×</button>`;
+  document.getElementById('new-poll-options').appendChild(div);
+}
+function removePollOption(btn) {
+  const opts = document.querySelectorAll('#new-poll-options .poll-option-input');
+  if (opts.length > 2) btn.parentElement.remove();
+  else showToast('At least 2 options required');
+}
+function createPoll(launch) {
+  const q = document.getElementById('new-poll-q').value.trim();
+  if (!q) { showToast('Please enter a poll question'); return; }
+  const optInputs = document.querySelectorAll('#new-poll-options .poll-option-input input');
+  const options = [];
+  optInputs.forEach((inp, i) => {
+    const v = inp.value.trim();
+    if (v) options.push({ id: String.fromCharCode(97 + i), text: v, votes: 0 });
+  });
+  if (options.length < 2) { showToast('Need at least 2 options'); return; }
+  const poll = {
+    id: state.nextPollId++,
+    question: q,
+    options,
+    status: launch ? 'live' : 'draft',
+    createdAt: Date.now()
+  };
+  state.polls.push(poll);
+  if (launch) state.activePollId = poll.id;
+  document.getElementById('new-poll-q').value = '';
+  document.getElementById('new-poll-options').innerHTML = `
+    <div class="poll-option-input"><input class="form-input" placeholder="Option 1" /><button class="icon-btn" onclick="removePollOption(this)">×</button></div>
+    <div class="poll-option-input"><input class="form-input" placeholder="Option 2" /><button class="icon-btn" onclick="removePollOption(this)">×</button></div>
+  `;
+  saveState();
+  render();
+  showToast(launch ? 'Poll launched' : 'Poll saved as draft', true);
+}
+function launchPoll(id) {
+  const p = state.polls.find(x => x.id === id);
+  if (p) { p.status = 'live'; state.activePollId = id; saveState(); render(); }
+}
+function closePoll(id) {
+  const p = state.polls.find(x => x.id === id);
+  if (p) { p.status = 'closed'; if (state.activePollId === id) state.activePollId = null; saveState(); render(); }
+}
+function deletePoll(id) {
+  if (!confirm('Delete this poll?')) return;
+  state.polls = state.polls.filter(x => x.id !== id);
+  if (state.activePollId === id) state.activePollId = null;
+  saveState(); render();
+}
+function showPollOnProjector(id) {
+  state.activePollId = id;
+  state.projectorSection = 'poll';
+  saveState();
+  showToast('Sent to projector', true);
+  render();
+}
+function votePoll(pollId, optId) {
+  const poll = state.polls.find(x => x.id === pollId);
+  if (!poll || poll.status !== 'live') return;
+  const prev = myPollVotes[pollId];
+  if (prev === optId) return; // already selected
+  if (prev) {
+    const o = poll.options.find(x => x.id === prev);
+    if (o) o.votes = Math.max(0, o.votes - 1);
+  }
+  const opt = poll.options.find(x => x.id === optId);
+  if (opt) opt.votes++;
+  myPollVotes[pollId] = optId;
+  savePollVotes(myPollVotes);
+  saveState();
+  render();
+}
+
+// ── Reset (demo only) ──
+function resetSession() {
+  if (!confirm('Clear all questions, votes, and polls? This cannot be undone.')) return;
+  state = getDefaultState();
+  myVotes = [];
+  myPollVotes = {};
+  saveState();
+  saveVotes(myVotes);
+  savePollVotes(myPollVotes);
+  render();
+  showToast('Session reset', true);
+}
+
+// ── Render ──
+function render() {
+  renderHost();
+  renderParticipant();
+  renderProjector();
+  // Sync toggles
+  document.getElementById('toggle-mod').classList.toggle('on', state.settings.moderation);
+  document.getElementById('toggle-anon').classList.toggle('on', state.settings.anonymous);
+}
+
+function renderHost() {
+  // Counts
+  const pending = state.questions.filter(q => q.status === 'pending');
+  const live = state.questions.filter(q => q.status === 'live');
+  const archived = state.questions.filter(q => q.status === 'archived');
+  document.getElementById('pending-count').textContent = pending.length;
+  document.getElementById('live-count').textContent = live.length;
+  document.getElementById('archived-count').textContent = archived.length;
+  document.getElementById('stat-total-q').textContent = state.questions.length;
+  document.getElementById('stat-live-q').textContent = live.length;
+  document.getElementById('stat-votes').textContent = state.questions.reduce((s,q) => s + q.votes, 0);
+  document.getElementById('stat-polls').textContent = state.polls.filter(p => p.status === 'live').length;
+
+  // Pending list
+  const pendingHtml = pending.length === 0
+    ? `<div class="empty-state"><div class="empty-state-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></div><div class="empty-state-text">No questions waiting</div><div class="empty-state-hint">All caught up</div></div>`
+    : pending.sort((a,b) => b.createdAt - a.createdAt).map(q => questionCardHtml(q, 'pending')).join('');
+  document.getElementById('pending-list').innerHTML = pendingHtml;
+
+  // Live list
+  const sortBy = document.getElementById('sort-questions').value;
+  const sorted = [...live].sort((a,b) => sortBy === 'votes' ? b.votes - a.votes : b.createdAt - a.createdAt);
+  const liveHtml = sorted.length === 0
+    ? `<div class="empty-state"><div class="empty-state-text">No live questions yet</div></div>`
+    : sorted.map(q => questionCardHtml(q, 'live')).join('');
+  document.getElementById('live-list').innerHTML = liveHtml;
+
+  // Archived list
+  const archHtml = archived.length === 0
+    ? `<div class="empty-state"><div class="empty-state-text">Nothing archived yet</div></div>`
+    : archived.sort((a,b) => b.createdAt - a.createdAt).map(q => questionCardHtml(q, 'archived')).join('');
+  document.getElementById('archived-list').innerHTML = archHtml;
+
+  // Polls
+  document.getElementById('polls-count').textContent = state.polls.length;
+  const pollsHtml = state.polls.length === 0
+    ? `<div class="empty-state"><div class="empty-state-text">No polls yet</div><div class="empty-state-hint">Create one above</div></div>`
+    : [...state.polls].reverse().map(p => pollCardHtml(p)).join('');
+  document.getElementById('polls-list').innerHTML = pollsHtml;
+}
+
+function questionCardHtml(q, status) {
+  const isEditing = q._editing;
+  const totalVotes = q.votes;
+  const textPart = isEditing
+    ? `<textarea class="q-text-input" id="edit-q-${q.id}" rows="2">${escapeHtml(q.text)}</textarea>`
+    : `<div class="q-text">${escapeHtml(q.text)}</div>`;
+
+  let actions = '';
+  if (status === 'pending') {
+    actions = `
+      <button class="btn btn-success btn-sm" onclick="approveQuestion(${q.id})">Approve</button>
+      <button class="btn btn-outline btn-sm" onclick="${isEditing ? `saveEditQuestion(${q.id})` : `startEditQuestion(${q.id})`}">${isEditing ? 'Save' : 'Edit'}</button>
+      <button class="btn btn-danger btn-sm" onclick="rejectQuestion(${q.id})">Reject</button>
+    `;
+  } else if (status === 'live') {
+    actions = `
+      <button class="btn btn-outline btn-sm" onclick="${isEditing ? `saveEditQuestion(${q.id})` : `startEditQuestion(${q.id})`}">${isEditing ? 'Save' : 'Edit'}</button>
+      <button class="btn btn-outline btn-sm" onclick="archiveQuestion(${q.id})">Archive</button>
+    `;
+  } else if (status === 'archived') {
+    actions = `<button class="btn btn-outline btn-sm" onclick="unarchiveQuestion(${q.id})">Restore</button>`;
+  }
+
+  return `
+    <div class="q-card ${status}">
+      <div class="q-header">
+        <span class="q-status-pill ${status}">${status.toUpperCase()}</span>
+        <span class="q-author">${escapeHtml(q.author)}</span>
+        <span class="q-time">· ${timeAgo(q.createdAt)}</span>
+      </div>
+      <div class="q-body">
+        <div class="q-votes">
+          <div class="q-votes-num">${totalVotes}</div>
+          <div class="q-votes-label">votes</div>
+        </div>
+        ${textPart}
+      </div>
+      <div class="q-actions">${actions}</div>
+    </div>
+  `;
+}
+
+function pollCardHtml(p) {
+  const total = p.options.reduce((s,o) => s + o.votes, 0) || 1;
+  const isActive = state.activePollId === p.id;
+  const optsHtml = p.options.map(o => {
+    const pct = Math.round((o.votes / total) * 100);
+    return `
+      <div class="poll-option-row">
+        <div class="poll-option-bar" style="width: ${pct}%;"></div>
+        <div class="poll-option-text">${escapeHtml(o.text)}</div>
+        <div class="poll-option-count">${o.votes}</div>
+        <div class="poll-option-pct">${pct}%</div>
+      </div>
+    `;
+  }).join('');
+
+  let actions = '';
+  if (p.status === 'draft') {
+    actions = `<button class="btn btn-success btn-sm" onclick="launchPoll(${p.id})">Launch</button>`;
+  } else if (p.status === 'live') {
+    actions = `
+      ${isActive ? '<span style="font-size: 11px; color: var(--green); font-weight: 600;">▶ ON PROJECTOR</span>' : `<button class="btn btn-outline btn-sm" onclick="showPollOnProjector(${p.id})">Show on projector</button>`}
+      <button class="btn btn-outline btn-sm" onclick="closePoll(${p.id})">Close</button>
+    `;
+  }
+  actions += `<button class="btn btn-danger btn-sm" onclick="deletePoll(${p.id})">Delete</button>`;
+
+  return `
+    <div class="poll-card ${p.status}">
+      <div class="poll-question">${escapeHtml(p.question)}</div>
+      <div class="poll-options">${optsHtml}</div>
+      <div class="poll-meta">
+        <span class="q-status-pill ${p.status === 'live' ? 'live' : (p.status === 'draft' ? 'pending' : 'archived')}">${p.status.toUpperCase()}</span>
+        <span>${total} total votes</span>
+        <div style="flex:1;"></div>
+        ${actions}
+      </div>
+    </div>
+  `;
+}
+
+function renderParticipant() {
+  // Live questions for voting
+  const live = state.questions.filter(q => q.status === 'live').sort((a,b) => b.votes - a.votes);
+  const html = live.length === 0
+    ? `<div class="empty-state"><div class="empty-state-text">No questions yet</div><div class="empty-state-hint">Be the first to ask</div></div>`
+    : live.map(q => {
+        const voted = myVotes.includes(q.id);
+        return `
+          <div class="p-q-card">
+            <button class="vote-btn ${voted ? 'voted' : ''}" onclick="toggleVote(${q.id})">
+              <div class="vote-arrow"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg></div>
+              <div class="vote-num">${q.votes}</div>
+            </button>
+            <div class="p-q-content">
+              <div class="p-q-text">${escapeHtml(q.text)}</div>
+              <div class="p-q-author">${escapeHtml(q.author)} · ${timeAgo(q.createdAt)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+  document.getElementById('p-questions-list').innerHTML = html;
+
+  // Polls
+  const livePolls = state.polls.filter(p => p.status === 'live');
+  const pollHtml = livePolls.length === 0
+    ? `<div class="p-section"><div class="empty-state"><div class="empty-state-text">No active polls</div></div></div>`
+    : livePolls.map(p => {
+        const myChoice = myPollVotes[p.id];
+        const voted = !!myChoice;
+        const total = p.options.reduce((s,o) => s + o.votes, 0) || 1;
+        const optsHtml = p.options.map(o => {
+          if (voted) {
+            const pct = Math.round((o.votes / total) * 100);
+            const isMine = myChoice === o.id;
+            return `
+              <div class="poll-option-row" style="${isMine ? 'border: 1.5px solid var(--cyan);' : ''}">
+                <div class="poll-option-bar" style="width: ${pct}%;"></div>
+                <div class="poll-option-text">${escapeHtml(o.text)}${isMine ? ' ✓' : ''}</div>
+                <div class="poll-option-count">${o.votes}</div>
+                <div class="poll-option-pct">${pct}%</div>
+              </div>
+            `;
+          }
+          return `
+            <button class="p-poll-option" onclick="votePoll(${p.id}, '${o.id}')">
+              <div class="p-poll-option-radio"></div>
+              <div>${escapeHtml(o.text)}</div>
+            </button>
+          `;
+        }).join('');
+        return `
+          <div class="p-section">
+            <div class="p-section-title">${voted ? 'Live results' : 'Tap to vote'}</div>
+            <div style="font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 14px;">${escapeHtml(p.question)}</div>
+            ${optsHtml}
+            ${voted ? `<div style="font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center;">${total} total votes</div>` : ''}
+          </div>
+        `;
+      }).join('');
+  document.getElementById('p-polls-list').innerHTML = pollHtml;
+}
+
+function renderProjector() {
+  // Sync section tabs
+  document.querySelectorAll('.proj-section-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.projTab === state.projectorSection);
+  });
+  document.getElementById('proj-questions').style.display = state.projectorSection === 'questions' ? 'block' : 'none';
+  document.getElementById('proj-poll').style.display = state.projectorSection === 'poll' ? 'block' : 'none';
+
+  // Questions
+  const live = state.questions.filter(q => q.status === 'live').sort((a,b) => b.votes - a.votes).slice(0, 6);
+  const qHtml = live.length === 0
+    ? `<div class="proj-empty">Waiting for questions...<br><span style="font-size: 14px; opacity: 0.7;">Join at quizt.app/QT-Q3-2026 to participate</span></div>`
+    : `<div class="proj-grid">` + live.map((q, i) => `
+        <div class="proj-q ${i === 0 ? 'top' : ''}">
+          <div class="proj-vote">${q.votes}</div>
+          <div>
+            <div class="proj-q-text">${escapeHtml(q.text)}</div>
+            <div class="proj-q-author">— ${escapeHtml(q.author)}</div>
+          </div>
+        </div>
+      `).join('') + `</div>`;
+  document.getElementById('proj-questions').innerHTML = qHtml;
+
+  // Active poll on projector
+  const activePoll = state.polls.find(p => p.id === state.activePollId && p.status === 'live');
+  const ppHtml = !activePoll
+    ? `<div class="proj-empty">No active poll<br><span style="font-size: 14px; opacity: 0.7;">Launch a poll from the host dashboard</span></div>`
+    : (() => {
+        const total = activePoll.options.reduce((s,o) => s + o.votes, 0) || 1;
+        const opts = activePoll.options.map(o => {
+          const pct = Math.round((o.votes / total) * 100);
+          return `
+            <div class="proj-poll-bar-row">
+              <div class="proj-poll-label">${escapeHtml(o.text)}</div>
+              <div class="proj-poll-bar-bg">
+                <div class="proj-poll-bar-fill" style="width: ${pct}%;"></div>
+              </div>
+              <div class="proj-poll-num">${o.votes} (${pct}%)</div>
+            </div>
+          `;
+        }).join('');
+        return `
+          <div class="proj-poll">
+            <div class="proj-poll-q">${escapeHtml(activePoll.question)}</div>
+            ${opts}
+            <div style="margin-top: 22px; font-size: 14px; opacity: 0.6;">${total} responses · live</div>
+          </div>
+        `;
+      })();
+  document.getElementById('proj-poll').innerHTML = ppHtml;
+}
+
+// ── Real QR code generation (uses qrcode.js library) ──
+let qrInstance = null;
+function drawQR() {
+  const grid = document.getElementById('qr-canvas');
+  if (!grid) return;
+  const url = (state.joinUrl || 'https://quizt.app/' + state.sessionCode);
+  document.getElementById('qr-url-display').textContent = url;
+  const input = document.getElementById('qr-url-input');
+  if (input && document.activeElement !== input) input.value = url;
+  grid.innerHTML = '';
+  qrInstance = new QRCode(grid, {
+    text: url,
+    width: 160,
+    height: 160,
+    colorDark: '#1a1a2e',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+}
+
+// Live update QR when URL is edited
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('qr-url-input');
+  if (input) {
+    input.addEventListener('input', (e) => {
+      const v = e.target.value.trim();
+      state.joinUrl = v || ('https://quizt.app/' + state.sessionCode);
+      saveState();
+      drawQR();
+    });
+  }
+});
+
+// ── Cross-tab sync (storage event fires when other tab writes) ──
+window.addEventListener('storage', (e) => {
+  if (e.key === STORAGE_KEY + '_ping' || e.key === STORAGE_KEY) {
+    state = loadState();
+    render();
+  }
+});
+
+// ── Initial render ──
+drawQR();
+render();
+</script>
+</body>
+</html>
