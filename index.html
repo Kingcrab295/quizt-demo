@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Quiz(T) — Live Q&A and Polls</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -70,7 +70,11 @@
     --archived-fg: #a0ee9a;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
+  html, body {
+    height: 100%;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
   body {
     background: var(--bg);
     font-family: 'Sarabun', sans-serif;
@@ -177,6 +181,56 @@
   @media (max-width: 700px) {
     .header-action.export-btn span { display: none; }
     .header-action.export-btn { width: 36px; padding: 0; }
+
+    /* Header wrapping fix */
+    .header { padding: 0 10px; gap: 6px; flex-wrap: nowrap; }
+    .header-divider { display: none; }
+    .header-session { font-size: 11px; }
+    .header-mark { width: 28px; height: 28px; font-size: 10px; border-radius: 6px; }
+    .header-title { font-size: 13px; }
+    .header-title span { display: none; }
+
+    /* Role switcher compact */
+    .role-btn { padding: 4px 8px; font-size: 11px; }
+
+    /* Participant view padding */
+    .p-header { padding: 16px 14px 12px; }
+    .p-session-code { font-size: 22px; letter-spacing: 4px; }
+    .p-tabs { padding: 0 14px; }
+    .p-tab { padding: 8px 12px; font-size: 13px; }
+    .p-body { padding: 12px 14px; }
+    .p-section { padding: 14px; }
+
+    /* Prevent text overflow in cards */
+    .p-q-text { font-size: 14px; word-break: break-word; }
+    .q-text { word-break: break-word; }
+
+    /* Poll option rows don't overflow */
+    .poll-option-row { padding: 8px 10px; gap: 6px; }
+    .poll-option-text { font-size: 13px; min-width: 0; flex: 1; word-break: break-word; }
+    .poll-option-count { font-size: 12px; }
+    .poll-option-pct { font-size: 11px; min-width: 34px; }
+
+    /* Setup card full width */
+    .setup-card { padding: 24px 20px; }
+    .role-choice-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .role-choice-card { padding: 16px 10px; }
+    .role-choice-card-desc { font-size: 11px; }
+
+    /* Interaction type picker wraps nicely */
+    .type-picker { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .type-card { padding: 8px 6px; }
+    .type-card-label { font-size: 11px; }
+
+    /* Word cloud doesn't overflow */
+    .word-cloud-display { padding: 10px; }
+    .word-cloud-word { margin: 2px 4px; }
+
+    /* Ranking items touch-friendly */
+    .ranking-item { padding: 12px 10px; }
+
+    /* Rating stars bigger touch target */
+    .p-rating-star { width: 44px; height: 44px; }
   }
 
   /* ───────── App container ───────── */
@@ -1472,6 +1526,27 @@
   .setup-join-link { text-align: center; font-size: 13px; color: var(--muted); margin-top: 16px; }
   .setup-join-link a { color: var(--cyan); text-decoration: none; font-weight: 600; cursor: pointer; }
 
+  /* Role choice cards */
+  .role-choice-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 20px 0;
+  }
+  .role-choice-card {
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--surface);
+  }
+  .role-choice-card:hover { border-color: var(--cyan); background: color-mix(in srgb, var(--cyan) 8%, var(--surface)); }
+  .role-choice-card svg { width: 32px; height: 32px; color: var(--cyan); margin-bottom: 10px; }
+  .role-choice-card-title { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+  .role-choice-card-desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
   /* ── Connection status banner ── */
   .conn-banner {
     position: fixed; top: 0; left: 0; right: 0;
@@ -1741,6 +1816,24 @@
     <div id="setup-loading" style="display:none; text-align:center; padding: 20px 0;">
       <div style="font-size: 14px; color: var(--muted);">Connecting to Supabase...</div>
     </div>
+
+    <!-- Role choice: shown when joining via URL -->
+    <div id="setup-role-choice" style="display:none;">
+      <div class="setup-title" id="role-choice-title">Join session</div>
+      <div class="setup-sub" id="role-choice-sub">How are you joining this session?</div>
+      <div class="role-choice-grid">
+        <div class="role-choice-card" onclick="joinAsRole('host')">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          <div class="role-choice-card-title">I'm the Host</div>
+          <div class="role-choice-card-desc">Manage questions, launch polls, control projector</div>
+        </div>
+        <div class="role-choice-card" onclick="joinAsRole('participant')">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2v-1a7 7 0 00-14 0v1a2 2 0 002 2zM12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>
+          <div class="role-choice-card-title">I'm a Participant</div>
+          <div class="role-choice-card-desc">Ask questions, vote, respond to polls</div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1928,7 +2021,7 @@
   <div class="view" id="view-participant">
     <div class="participant-wrap">
       <div class="session-banner">
-        <div class="session-banner-title">Q3 2026 All-Hands</div>
+        <div class="session-banner-title" id="p-session-title">—</div>
         <div class="session-banner-meta">SESSION: QT-Q3-2026</div>
       </div>
 
@@ -2000,11 +2093,11 @@
       <div class="projector">
         <div class="proj-header">
           <div class="proj-bar"></div>
-          <div class="proj-title">Q3 2026 All-Hands — Live Q&A</div>
+          <div class="proj-title" id="proj-session-title">—</div>
           <div class="proj-spacer"></div>
           <div class="proj-join">
-            <div class="proj-join-label">Join at quizt.app</div>
-            <div class="proj-join-code">QT-Q3-2026</div>
+            <div class="proj-join-label" id="proj-join-label">Join at quizt.app</div>
+            <div class="proj-join-code" id="proj-join-code">—</div>
           </div>
         </div>
 
@@ -2244,6 +2337,20 @@ async function loadSession(sessionId, sessionTitle, isHost) {
   document.getElementById('header-session-code').textContent = sessionId;
   document.getElementById('header-session-title').textContent = sessionTitle;
 
+  // Update participant banner title
+  const pTitle = document.getElementById('p-session-title');
+  if (pTitle) pTitle.textContent = sessionTitle;
+
+  // Update projector title
+  const projTitle = document.getElementById('proj-session-title');
+  if (projTitle) projTitle.textContent = sessionTitle + ' — Live Q&A';
+
+  // Update projector header join info
+  const projJoinLabel = document.getElementById('proj-join-label');
+  const projJoinCode = document.getElementById('proj-join-code');
+  if (projJoinLabel) projJoinLabel.textContent = window.location.hostname;
+  if (projJoinCode) projJoinCode.textContent = sessionId;
+
   // Update projector footer
   const footer = document.querySelector('.proj-footer');
   if (footer) footer.innerHTML = `Powered by Quiz(T) · Join at <span>${state.joinUrl}</span>`;
@@ -2254,6 +2361,7 @@ async function loadSession(sessionId, sessionTitle, isHost) {
 
   // Subscribe to real-time changes
   subscribeRealtime(sessionId);
+  startRefreshTimer();
 
   // Render
   try { loadTheme(); } catch(e) {}
@@ -2405,18 +2513,38 @@ async function dbCastInteractionVote(interactionId, value) {
 // ── Real-time subscriptions ──
 let realtimeChannel = null;
 function subscribeRealtime(sessionId) {
-  if (realtimeChannel) realtimeChannel.unsubscribe();
-  realtimeChannel = sb.channel('session:' + sessionId)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: 'session_id=eq.' + sessionId },
-      (payload) => handleQuestionChange(payload))
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'interactions', filter: 'session_id=eq.' + sessionId },
-      (payload) => handleInteractionChange(payload))
+  if (realtimeChannel) {
+    realtimeChannel.unsubscribe();
+    realtimeChannel = null;
+  }
+  realtimeChannel = sb.channel('quizt-' + sessionId)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'questions' },
+      (payload) => {
+        // Filter client-side to this session
+        const row = payload.new || payload.old;
+        if (row && row.session_id !== sessionId) return;
+        handleQuestionChange(payload);
+      })
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'interactions' },
+      (payload) => {
+        const row = payload.new || payload.old;
+        if (row && row.session_id !== sessionId) return;
+        handleInteractionChange(payload);
+      })
     .subscribe((status) => {
+      console.log('Realtime status:', status);
       if (status === 'SUBSCRIBED') {
         setSyncDot('');
+        console.log('✓ Realtime subscribed for session:', sessionId);
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         setSyncDot('offline');
         showConnBanner('Connection lost — trying to reconnect...', 'connecting', false);
+        // Auto-retry after 3 seconds
+        setTimeout(() => {
+          if (currentSessionId) subscribeRealtime(currentSessionId);
+        }, 3000);
       }
     });
 }
@@ -2460,37 +2588,71 @@ function handleInteractionChange(payload) {
 }
 
 // ── Participant auto-join from URL ──
+let _pendingSessionData = null; // holds session data while user picks role
+
 async function checkUrlSession() {
   const params = new URLSearchParams(window.location.search);
   const sessionParam = params.get('session');
-  if (sessionParam) {
-    // Participant joining via URL
-    document.getElementById('setup-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    document.getElementById('setup-loading').style.display = 'block';
-    try {
-      const { data, error } = await sb.from('sessions').select('*').eq('id', sessionParam.toUpperCase()).single();
-      if (error || !data) throw new Error('Session not found');
-      await loadSession(data.id, data.title, false);
-      // Switch to participant view
-      document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-      const pBtn = document.querySelector('[data-view="participant"]');
-      const pView = document.getElementById('view-participant');
-      if (pBtn) pBtn.classList.add('active');
-      if (pView) pView.classList.add('active');
-    } catch(e) {
-      document.getElementById('setup-screen').style.display = 'flex';
-      document.getElementById('app').style.display = 'none';
-      alert('Could not join session: ' + e.message);
-    }
-    return true;
+  if (!sessionParam) return false;
+
+  // Show setup screen with loading state
+  document.getElementById('setup-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('setup-new').style.display = 'none';
+  document.getElementById('setup-loading').style.display = 'block';
+
+  try {
+    const { data, error } = await sb.from('sessions').select('*').eq('id', sessionParam.toUpperCase()).single();
+    if (error || !data) throw new Error('Session not found. Ask your host for the correct link.');
+
+    // Store session data and show role choice
+    _pendingSessionData = data;
+    document.getElementById('setup-loading').style.display = 'none';
+    document.getElementById('role-choice-title').textContent = data.title;
+    document.getElementById('role-choice-sub').textContent = 'Session code: ' + data.id + ' — choose your role to continue';
+    document.getElementById('setup-role-choice').style.display = 'block';
+  } catch(e) {
+    document.getElementById('setup-loading').style.display = 'none';
+    document.getElementById('setup-new').style.display = 'block';
+    showToast(e.message);
   }
-  return false;
+  return true;
+}
+
+async function joinAsRole(role) {
+  if (!_pendingSessionData) return;
+  const data = _pendingSessionData;
+  document.getElementById('setup-role-choice').style.display = 'none';
+  document.getElementById('setup-loading').style.display = 'block';
+
+  await loadSession(data.id, data.title, role === 'host');
+
+  // Switch to correct view
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const viewName = role === 'host' ? 'host' : 'participant';
+  const btn = document.querySelector(`[data-view="${viewName}"]`);
+  const view = document.getElementById(`view-${viewName}`);
+  if (btn) btn.classList.add('active');
+  if (view) view.classList.add('active');
+
+  _pendingSessionData = null;
 }
 
 // ── Stub saveState (no-op, Supabase is source of truth) ──
 function saveState() { /* data lives in Supabase now */ }
+
+// ── Periodic refresh fallback (every 10s catches any missed real-time events) ──
+let refreshTimer = null;
+function startRefreshTimer() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(async () => {
+    if (currentSessionId) await refreshAllData().then(() => render());
+  }, 10000);
+}
+function stopRefreshTimer() {
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+}
 
 // ── State ──
 let myVotesLoaded = false;
@@ -3496,7 +3658,7 @@ function renderParticipant() {
   const html = live.length === 0
     ? `<div class="empty-state"><div class="empty-state-text">No questions yet</div><div class="empty-state-hint">Be the first to ask</div></div>`
     : live.map(q => {
-        const voted = myVotes.includes(q.id);
+        const voted = !!myVotes[q.id];
         return `
           <div class="p-q-card">
             <button class="vote-btn ${voted ? 'voted' : ''}" onclick="toggleVote(${q.id})">
@@ -3699,7 +3861,7 @@ function renderProjector() {
   // Questions
   const live = state.questions.filter(q => q.status === 'live').sort((a,b) => b.votes - a.votes).slice(0, 6);
   const qHtml = live.length === 0
-    ? `<div class="proj-empty">Waiting for questions...<br><span style="font-size: 14px; opacity: 0.7;">Join at quizt.app/QT-Q3-2026 to participate</span></div>`
+    ? `<div class="proj-empty">Waiting for questions...<br><span style="font-size: 14px; opacity: 0.7;">Join using the code: ${state.sessionCode}</span></div>`
     : `<div class="proj-grid">` + live.map((q, i) => `
         <div class="proj-q ${i === 0 ? 'top' : ''}">
           <div class="proj-vote">${q.votes}</div>
