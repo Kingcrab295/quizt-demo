@@ -6,6 +6,7 @@
 <title>Quiz(T) — Live Q&A and Polls</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --navy:   #1e2d78;
@@ -17,12 +18,55 @@
     --red:    #e8302a;
     --amber:  #f0a500;
     --ink:    #1a1a2e;
+    --ink-2:  #4a4f73;
     --bg:     #f4f6fb;
     --bg2:    #eaecf5;
+    --bg3:    #fafbfe;
+    --surface:#ffffff;
+    --surface-2:#fafbfe;
     --border: #c8ccdf;
     --border-2:#9ea3c7;
     --muted:  #6b7199;
     --white:  #ffffff;
+    --accent-strong: #1e2d78;
+    --accent-muted:  #1e2d78;
+    --shadow: 0 1px 3px rgba(30,45,120,0.08);
+    --pending-bg: #fff4e0;
+    --pending-fg: #8a5a00;
+    --live-bg: #e0f7ff;
+    --live-fg: #006fa3;
+    --archived-bg: #e8f5e7;
+    --archived-fg: #2a7a26;
+  }
+  [data-theme="dark"] {
+    --navy:   #2d3a8a;
+    --navy-2: #3a47a0;
+    --cyan:   #3dd1ff;
+    --cyan-2: #00bfff;
+    --green:  #6ee066;
+    --green-2:#5cc955;
+    --red:    #ff5e58;
+    --amber:  #ffca44;
+    --ink:    #eef1f8;
+    --ink-2:  #b8bfdb;
+    --bg:     #0f1429;
+    --bg2:    #242c52;
+    --bg3:    #1a2040;
+    --surface:#1a2040;
+    --surface-2:#222952;
+    --border: #3d4676;
+    --border-2:#5560a0;
+    --muted:  #a5abcf;
+    --white:  #ffffff;
+    --accent-strong: #6fd8ff;
+    --accent-muted:  #9ac7ff;
+    --shadow: 0 1px 3px rgba(0,0,0,0.4);
+    --pending-bg: #3d2f12;
+    --pending-fg: #ffcf70;
+    --live-bg: #123545;
+    --live-fg: #7fdbff;
+    --archived-bg: #1e3c1c;
+    --archived-fg: #a0ee9a;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
@@ -112,6 +156,27 @@
     background: var(--cyan);
     color: white;
   }
+  .header-action {
+    background: rgba(255,255,255,0.08);
+    border: none;
+    color: rgba(255,255,255,0.75);
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin-left: 8px;
+    transition: all 0.15s;
+  }
+  .header-action:hover { background: rgba(255,255,255,0.18); color: white; }
+  .header-action svg { width: 18px; height: 18px; }
+  .header-action.export-btn { width: auto; padding: 0 12px; gap: 6px; font-size: 13px; font-weight: 500; }
+  .header-action.export-btn span { display: inline-block; }
+  @media (max-width: 700px) {
+    .header-action.export-btn span { display: none; }
+    .header-action.export-btn { width: 36px; padding: 0; }
+  }
 
   /* ───────── App container ───────── */
   .app { padding: 0; }
@@ -134,7 +199,7 @@
   }
 
   .panel {
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
     overflow: hidden;
@@ -145,12 +210,12 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    background: #fafbfe;
+    background: var(--surface-2);
   }
   .panel-title {
     font-size: 13px;
     font-weight: 600;
-    color: var(--navy);
+    color: var(--accent-strong);
     letter-spacing: 1px;
     text-transform: uppercase;
   }
@@ -162,8 +227,8 @@
     border-radius: 99px;
     font-weight: 600;
   }
-  .panel-count.warn { background: #fff4e0; color: #8a5a00; }
-  .panel-count.live { background: #e0f7ff; color: #006fa3; }
+  .panel-count.warn { background: var(--pending-bg); color: var(--pending-fg); }
+  .panel-count.live { background: var(--live-bg); color: var(--live-fg); }
   .panel-body { padding: 16px; }
   .panel-body.dense { padding: 0; }
 
@@ -187,17 +252,17 @@
     border-radius: 5px;
     transition: all 0.15s;
   }
-  .host-tab:hover { color: var(--navy); }
+  .host-tab:hover { color: var(--accent-strong); }
   .host-tab.active {
-    background: white;
-    color: var(--navy);
+    background: var(--surface);
+    color: var(--accent-strong);
     font-weight: 600;
     box-shadow: 0 1px 3px rgba(30,45,120,0.08);
   }
 
   /* Question card (host) */
   .q-card {
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 14px 16px;
@@ -225,9 +290,9 @@
     font-weight: 600;
     letter-spacing: 0.3px;
   }
-  .q-status-pill.pending { background: #fff4e0; color: #8a5a00; }
-  .q-status-pill.live { background: #e0f7ff; color: #006fa3; }
-  .q-status-pill.archived { background: #e8f5e7; color: #2a7a26; }
+  .q-status-pill.pending { background: var(--pending-bg); color: var(--pending-fg); }
+  .q-status-pill.live { background: var(--live-bg); color: var(--live-fg); }
+  .q-status-pill.archived { background: var(--archived-bg); color: var(--archived-fg); }
 
   .q-body {
     display: flex;
@@ -247,7 +312,7 @@
   .q-votes-num {
     font-size: 18px;
     font-weight: 700;
-    color: var(--navy);
+    color: var(--accent-strong);
     line-height: 1;
   }
   .q-votes-label {
@@ -272,7 +337,7 @@
     padding: 6px 10px;
     border: 1px dashed var(--cyan);
     border-radius: 4px;
-    background: #f8feff;
+    background: var(--bg3);
     width: 100%;
     resize: vertical;
     font-family: inherit;
@@ -311,17 +376,17 @@
   }
   .btn-success:hover { background: var(--green-2); }
   .btn-danger {
-    background: white;
+    background: var(--surface);
     color: var(--red);
     border-color: var(--red);
   }
   .btn-danger:hover { background: var(--red); color: white; }
   .btn-outline {
-    background: white;
-    color: var(--navy);
+    background: var(--surface);
+    color: var(--accent-strong);
     border-color: var(--border);
   }
-  .btn-outline:hover { border-color: var(--navy); }
+  .btn-outline:hover { border-color: var(--accent-strong); }
   .btn-navy {
     background: var(--navy);
     color: white;
@@ -353,7 +418,7 @@
 
   /* Side panel (right column) */
   .side-section {
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
     margin-bottom: 16px;
@@ -362,10 +427,10 @@
   .side-section-header {
     padding: 12px 16px;
     border-bottom: 1px solid var(--border);
-    background: #fafbfe;
+    background: var(--surface-2);
     font-size: 12px;
     font-weight: 600;
-    color: var(--navy);
+    color: var(--accent-strong);
     letter-spacing: 1px;
     text-transform: uppercase;
   }
@@ -383,7 +448,7 @@
   .stat-value {
     font-size: 18px;
     font-weight: 700;
-    color: var(--navy);
+    color: var(--accent-strong);
   }
 
   .toggle-row {
@@ -415,7 +480,7 @@
     left: 2px;
     width: 18px;
     height: 18px;
-    background: white;
+    background: var(--surface);
     border-radius: 50%;
     transition: left 0.2s;
     box-shadow: 0 1px 2px rgba(0,0,0,0.15);
@@ -431,7 +496,7 @@
   .qr-canvas {
     width: 176px;
     height: 176px;
-    background: white;
+    background: var(--surface);
     margin: 0 auto 10px;
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -444,7 +509,7 @@
   .qr-url {
     font-family: 'Sarabun', monospace;
     font-size: 11px;
-    color: var(--navy);
+    color: var(--accent-strong);
     background: var(--bg);
     padding: 6px 10px;
     border-radius: 4px;
@@ -467,7 +532,7 @@
 
   /* ───── Polls section ───── */
   .poll-card {
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 16px;
@@ -504,7 +569,7 @@
     top: 0;
     left: 0;
     bottom: 0;
-    background: linear-gradient(90deg, #d0f0fd 0%, #e8f7ff 100%);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--cyan) 35%, transparent) 0%, color-mix(in srgb, var(--cyan) 18%, transparent) 100%);
     transition: width 0.4s ease;
     z-index: 0;
   }
@@ -518,7 +583,7 @@
   .poll-option-count {
     font-size: 13px;
     font-weight: 600;
-    color: var(--navy);
+    color: var(--accent-strong);
     z-index: 1;
     position: relative;
   }
@@ -542,17 +607,337 @@
 
   /* Create poll form */
   .create-poll {
-    background: #fafbfe;
+    background: var(--surface-2);
     border: 1px dashed var(--border-2);
     border-radius: 8px;
     padding: 16px;
     margin-bottom: 16px;
   }
+
+  /* Type picker grid */
+  .type-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .type-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .type-card:hover { border-color: var(--cyan); }
+  .type-card.selected {
+    border-color: var(--cyan);
+    background: color-mix(in srgb, var(--cyan) 10%, var(--surface));
+  }
+  .type-card svg {
+    width: 22px; height: 22px;
+    color: var(--muted);
+    transition: color 0.15s;
+  }
+  .type-card.selected svg { color: var(--cyan); }
+  .type-card-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+
+  /* Type-specific result displays */
+  .word-cloud-display {
+    padding: 16px;
+    text-align: center;
+    line-height: 1.8;
+    min-height: 80px;
+  }
+  .word-cloud-word {
+    display: inline-block;
+    margin: 4px 6px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--cyan);
+    transition: all 0.2s;
+    cursor: default;
+  }
+  .word-cloud-word:hover {
+    background: var(--bg2);
+  }
+  .word-cloud-empty {
+    color: var(--muted);
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  .open-text-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .open-text-item {
+    background: var(--bg);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--ink);
+    border-left: 3px solid var(--cyan);
+  }
+
+  .rating-display {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    flex-wrap: wrap;
+  }
+  .rating-stars {
+    display: flex;
+    gap: 4px;
+  }
+  .rating-star {
+    width: 28px; height: 28px;
+    color: var(--amber);
+  }
+  .rating-star.empty { color: var(--border); }
+  .rating-avg {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .rating-meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .rating-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  .rating-bar-label {
+    width: 50px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .rating-bar-bg {
+    flex: 1;
+    height: 8px;
+    background: var(--bg2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .rating-bar-fill {
+    height: 100%;
+    background: var(--amber);
+    border-radius: 4px;
+    transition: width 0.3s;
+  }
+  .rating-bar-count {
+    width: 30px;
+    text-align: right;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ranking-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .ranking-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    user-select: none;
+    cursor: grab;
+  }
+  .ranking-item:active { cursor: grabbing; }
+  .ranking-item.dragging { opacity: 0.5; }
+  .ranking-item.drag-over { border-color: var(--cyan); border-style: dashed; }
+  .ranking-rank {
+    background: var(--cyan);
+    color: white;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .ranking-text { flex: 1; font-size: 14px; color: var(--ink); }
+  .ranking-handle {
+    color: var(--muted);
+    cursor: grab;
+  }
+  .ranking-score {
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--surface);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+
+  /* Participant rating input */
+  .p-rating-stars {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 0;
+  }
+  .p-rating-star {
+    width: 40px; height: 40px;
+    color: var(--border);
+    cursor: pointer;
+    transition: color 0.15s, transform 0.15s;
+  }
+  .p-rating-star:hover { transform: scale(1.1); }
+  .p-rating-star.filled { color: var(--amber); }
+
+  /* Participant open-text/wordcloud submission */
+  .p-text-submit {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    background: var(--surface);
+    color: var(--ink);
+    margin-bottom: 8px;
+    scroll-margin-top: 80px;
+    scroll-margin-bottom: 280px;
+  }
+  .p-text-submit:focus { outline: none; border-color: var(--cyan); }
+
+  /* Type badge in interaction list */
+  .interaction-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg2);
+    color: var(--muted);
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .interaction-type-badge svg { width: 12px; height: 12px; }
+
+  /* Projector word cloud (huge text) */
+  .proj-word-cloud {
+    background: rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+    line-height: 1.6;
+    min-height: 280px;
+  }
+  .proj-word {
+    display: inline-block;
+    margin: 8px 12px;
+    color: var(--cyan);
+    transition: all 0.3s;
+  }
+  .proj-word.faint { color: rgba(255,255,255,0.4); }
+
+  /* Projector open text */
+  .proj-open-text {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .proj-open-item {
+    background: rgba(255,255,255,0.06);
+    border-left: 3px solid var(--cyan);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    font-size: 16px;
+    line-height: 1.4;
+  }
+
+  /* Projector rating */
+  .proj-rating {
+    background: rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+  }
+  .proj-rating-num {
+    font-size: 88px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--cyan);
+  }
+  .proj-rating-stars {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 16px 0;
+  }
+  .proj-rating-star {
+    width: 38px; height: 38px;
+    color: var(--amber);
+  }
+  .proj-rating-star.empty { color: rgba(255,255,255,0.2); }
+  .proj-rating-meta {
+    font-size: 14px;
+    opacity: 0.7;
+  }
+
+  /* Projector ranking */
+  .proj-ranking-item {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: rgba(255,255,255,0.06);
+    padding: 16px 22px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border-left: 4px solid var(--cyan);
+  }
+  .proj-ranking-rank {
+    background: var(--cyan);
+    color: white;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .proj-ranking-text { flex: 1; font-size: 22px; }
+  .proj-ranking-score {
+    font-size: 14px;
+    opacity: 0.7;
+  }
   .form-label {
     display: block;
     font-size: 12px;
     font-weight: 600;
-    color: var(--navy);
+    color: var(--accent-strong);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 6px;
@@ -563,9 +948,16 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 14px;
-    background: white;
+    background: var(--surface);
     color: var(--ink);
     transition: border-color 0.15s;
+    /* Keep input in view when mobile keyboard appears */
+    scroll-margin-top: 80px;
+    scroll-margin-bottom: 280px;
+  }
+  /* Prevent iOS zoom on focus (font-size must be >= 16px) */
+  @media (max-width: 700px) {
+    .form-input, .form-textarea, .p-text-submit { font-size: 16px; }
   }
   .form-input:focus, .form-textarea:focus {
     outline: none;
@@ -582,7 +974,7 @@
   .icon-btn {
     width: 32px; height: 32px;
     border: 1px solid var(--border);
-    background: white;
+    background: var(--surface);
     border-radius: 6px;
     display: flex;
     align-items: center;
@@ -623,7 +1015,7 @@
   .participant-tabs {
     display: flex;
     gap: 2px;
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--border);
     padding: 4px;
     border-radius: 8px;
@@ -646,7 +1038,7 @@
   }
 
   .p-section {
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 18px;
@@ -655,7 +1047,7 @@
   .p-section-title {
     font-size: 13px;
     font-weight: 600;
-    color: var(--navy);
+    color: var(--accent-strong);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 12px;
@@ -678,7 +1070,7 @@
     justify-content: center;
     min-width: 48px;
     padding: 8px 6px;
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 6px;
     transition: all 0.15s;
@@ -694,7 +1086,7 @@
   .vote-btn.voted .vote-arrow svg { color: white; }
   .vote-arrow { color: var(--muted); height: 14px; line-height: 0; }
   .vote-arrow svg { width: 14px; height: 14px; }
-  .vote-num { font-size: 15px; font-weight: 700; color: var(--navy); line-height: 1.2; }
+  .vote-num { font-size: 15px; font-weight: 700; color: var(--accent-strong); line-height: 1.2; }
 
   .p-q-content { flex: 1; }
   .p-q-text { font-size: 14px; line-height: 1.5; color: var(--ink); }
@@ -706,7 +1098,7 @@
     align-items: center;
     gap: 10px;
     padding: 12px 14px;
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     margin-bottom: 8px;
@@ -716,7 +1108,7 @@
     color: var(--ink);
     font-size: 14px;
   }
-  .p-poll-option:hover { border-color: var(--cyan); background: #f8feff; }
+  .p-poll-option:hover { border-color: var(--cyan); background: var(--bg3); }
   .p-poll-option.selected {
     background: var(--cyan);
     color: white;
@@ -736,12 +1128,12 @@
     content: '';
     position: absolute;
     inset: 3px;
-    background: white;
+    background: var(--surface);
     border-radius: 50%;
   }
 
   .p-submit-card {
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 18px;
@@ -765,11 +1157,104 @@
   .toast.show { transform: translateX(-50%) translateY(0); }
   .toast.success { background: var(--green); }
 
+  /* Modal dialog (for destructive confirmations) */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  .modal-backdrop.show { display: flex; animation: fadeIn 0.15s ease-out; }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .modal {
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    max-width: 440px;
+    width: 100%;
+    padding: 28px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: modalPop 0.2s ease-out;
+  }
+  @keyframes modalPop {
+    from { transform: scale(0.92); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .modal-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--red) 15%, transparent);
+    color: var(--red);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .modal-icon svg { width: 24px; height: 24px; }
+  .modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .modal-body {
+    font-size: 14px;
+    color: var(--ink-2);
+    line-height: 1.5;
+    margin-bottom: 20px;
+  }
+  .modal-body strong { color: var(--ink); }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .modal-actions .btn { min-width: 90px; }
+
+  /* Submit button states (prevents double-submit, shows confirmation) */
+  .btn.is-submitting {
+    pointer-events: none;
+    opacity: 0.6;
+    cursor: wait;
+  }
+  .btn.is-submitted {
+    pointer-events: none;
+    background: var(--green) !important;
+    border-color: var(--green) !important;
+    color: white !important;
+  }
+  .btn.is-submitted::before {
+    content: '✓ ';
+    font-weight: 700;
+    display: inline-block;
+    margin-right: 4px;
+    animation: checkPop 0.3s ease-out;
+  }
+  @keyframes checkPop {
+    0% { transform: scale(0); }
+    60% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+  }
+
   /* ═════════════════════════════════
      PROJECTOR VIEW
+     Note: Projector uses FIXED dark navy palette regardless of
+     theme setting. A projection display should look identical
+     in both modes (room lighting determines readability).
      ═════════════════════════════════ */
   .projector {
-    background: linear-gradient(180deg, var(--navy) 0%, #131e54 100%);
+    background: linear-gradient(180deg, #1e2d78 0%, #131e54 100%);
     color: white;
     min-height: calc(100vh - 60px);
     padding: 32px 48px;
@@ -789,51 +1274,32 @@
     border-radius: 3px;
   }
   .proj-title {
-    font-size: 28px;
+    font-size: 30px;
     font-weight: 600;
     color: white;
     letter-spacing: 0.3px;
   }
   .proj-spacer { flex: 1; }
   .proj-join {
-    background: white;
-    color: var(--navy);
-    padding: 12px 20px;
+    background: #ffffff;
+    color: #1e2d78;
+    padding: 14px 22px;
     border-radius: 8px;
     text-align: center;
   }
   .proj-join-label {
-    font-size: 11px;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: var(--muted);
-    margin-bottom: 2px;
+    color: #6b7199;
+    margin-bottom: 3px;
   }
   .proj-join-code {
     font-family: 'Sarabun', monospace;
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 700;
     letter-spacing: 3px;
-    color: var(--navy);
-  }
-
-  .proj-section-tabs {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 24px;
-  }
-  .proj-section-btn {
-    padding: 8px 18px;
-    background: rgba(255,255,255,0.1);
-    color: rgba(255,255,255,0.7);
-    border: none;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-  }
-  .proj-section-btn.active {
-    background: var(--cyan);
-    color: white;
+    color: #1e2d78;
   }
 
   .proj-grid {
@@ -845,9 +1311,9 @@
     background: rgba(255,255,255,0.06);
     border-left: 4px solid var(--cyan);
     border-radius: 0 8px 8px 0;
-    padding: 18px 22px;
+    padding: 20px 26px;
     display: flex;
-    gap: 18px;
+    gap: 20px;
     align-items: center;
   }
   .proj-q.top {
@@ -857,21 +1323,21 @@
   .proj-vote {
     background: var(--cyan);
     color: white;
-    padding: 10px 14px;
+    padding: 12px 16px;
     border-radius: 8px;
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 700;
-    min-width: 64px;
+    min-width: 72px;
     text-align: center;
   }
-  .proj-q.top .proj-vote { background: white; color: var(--navy); }
+  .proj-q.top .proj-vote { background: #ffffff; color: #1e2d78; }
   .proj-q-text {
-    font-size: 19px;
+    font-size: 24px;
     line-height: 1.4;
     flex: 1;
   }
   .proj-q-author {
-    font-size: 13px;
+    font-size: 15px;
     opacity: 0.55;
     margin-top: 6px;
   }
@@ -879,7 +1345,7 @@
     text-align: center;
     padding: 80px 20px;
     color: rgba(255,255,255,0.5);
-    font-size: 18px;
+    font-size: 20px;
   }
 
   .proj-poll {
@@ -888,9 +1354,9 @@
     padding: 28px 32px;
   }
   .proj-poll-q {
-    font-size: 24px;
+    font-size: 28px;
     font-weight: 600;
-    margin-bottom: 22px;
+    margin-bottom: 24px;
   }
   .proj-poll-bar-row {
     display: flex;
@@ -899,13 +1365,13 @@
     margin-bottom: 14px;
   }
   .proj-poll-label {
-    width: 200px;
-    font-size: 16px;
+    width: 240px;
+    font-size: 20px;
     flex-shrink: 0;
   }
   .proj-poll-bar-bg {
     flex: 1;
-    height: 36px;
+    height: 40px;
     background: rgba(255,255,255,0.08);
     border-radius: 6px;
     position: relative;
@@ -921,8 +1387,8 @@
     border-radius: 6px;
   }
   .proj-poll-num {
-    width: 80px;
-    font-size: 16px;
+    width: 100px;
+    font-size: 20px;
     font-weight: 600;
     text-align: right;
     flex-shrink: 0;
@@ -949,14 +1415,14 @@
 
   /* Demo notice */
   .demo-notice {
-    background: #fff8e1;
-    border-bottom: 1px solid #f0c068;
-    color: #6b4900;
+    background: var(--pending-bg);
+    border-bottom: 1px solid var(--amber);
+    color: var(--pending-fg);
     font-size: 12px;
     padding: 8px 24px;
     text-align: center;
   }
-  .demo-notice strong { color: #4a3300; }
+  .demo-notice strong { color: var(--pending-fg); }
 
   /* Reset session button */
   .reset-link {
@@ -968,6 +1434,182 @@
     text-decoration: underline;
     padding: 0;
     margin-top: 8px;
+  }
+
+  /* Export menu */
+  .export-menu {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    padding: 6px;
+    min-width: 220px;
+    z-index: 200;
+    display: none;
+  }
+  .export-menu.show { display: block; }
+  .export-menu-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    color: var(--ink);
+    font-family: inherit;
+  }
+  .export-menu-item:hover { background: var(--bg2); }
+  .export-menu-item svg { width: 18px; height: 18px; color: var(--cyan); flex-shrink: 0; margin-top: 1px; }
+  .export-menu-item-title { font-size: 13px; font-weight: 600; line-height: 1.3; }
+  .export-menu-item-desc { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+
+  /* Projector control bar — always visible at bottom */
+  .proj-controls {
+    position: absolute;
+    bottom: 48px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.15);
+    z-index: 50;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: calc(100% - 40px);
+  }
+  .proj-nav-group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 0 4px;
+    border-right: 1px solid rgba(255,255,255,0.15);
+  }
+  .proj-nav-group:last-child { border-right: none; padding-right: 0; }
+  .proj-nav-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 0 4px 0 2px;
+  }
+  .proj-control-btn {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    height: 40px;
+    min-width: 40px;
+    padding: 0 10px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .proj-control-btn:hover:not(:disabled) {
+    background: rgba(255,255,255,0.22);
+    border-color: rgba(255,255,255,0.4);
+  }
+  .proj-control-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .proj-control-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .proj-control-btn.active {
+    background: var(--cyan);
+    border-color: var(--cyan);
+  }
+  .proj-control-btn.primary {
+    background: var(--cyan);
+    border-color: var(--cyan);
+  }
+  .proj-control-btn.primary:hover:not(:disabled) {
+    background: var(--cyan-2);
+    border-color: var(--cyan-2);
+  }
+
+  /* Projector poll selector (inside control bar) */
+  .proj-poll-picker {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    padding: 0 14px;
+    height: 40px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    min-width: 200px;
+    max-width: 320px;
+  }
+  .proj-poll-picker:hover { background: rgba(255,255,255,0.2); }
+  .proj-poll-picker option { background: #1e2d78; color: white; }
+
+  /* Position indicator (e.g. "Question 1 of 6") */
+  .proj-position {
+    color: rgba(255,255,255,0.75);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0 10px;
+    min-width: 80px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Adjust projector padding so content doesn't hide behind control bar */
+  .projector {
+    padding-bottom: 140px;
+  }
+
+  /* Mobile: simplify bar */
+  @media (max-width: 700px) {
+    .proj-controls {
+      bottom: 16px;
+      padding: 8px 10px;
+      gap: 6px;
+    }
+    .proj-control-btn { padding: 0 8px; font-size: 12px; }
+    .proj-control-btn .btn-label { display: none; }
+    .proj-poll-picker { min-width: 140px; max-width: 200px; font-size: 12px; }
+    .proj-nav-label { display: none; }
+  }
+
+  /* Fullscreen mode - projector takes full viewport */
+  .projector-wrapper {
+    position: relative;
+  }
+  .projector-wrapper.fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: #1e2d78;
+  }
+  .projector-wrapper.fullscreen .projector {
+    min-height: 100vh;
+    height: 100vh;
+    overflow: auto;
+  }
+  .projector-wrapper.fullscreen .proj-footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
   }
 </style>
 </head>
@@ -994,6 +1636,14 @@
     <button class="role-btn" data-view="participant">Participant</button>
     <button class="role-btn" data-view="projector">Projector</button>
   </div>
+  <button class="header-action export-btn" id="export-btn" title="Export session data" onclick="showExportMenu(event)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+    <span>Export</span>
+  </button>
+  <button class="header-action" id="theme-toggle" title="Toggle dark mode" onclick="toggleTheme()">
+    <svg id="theme-icon-sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display:none;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+    <svg id="theme-icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+  </button>
 </div>
 
 <div class="app">
@@ -1005,7 +1655,7 @@
       <div>
         <div class="host-tabs">
           <button class="host-tab active" data-host-tab="questions">Questions</button>
-          <button class="host-tab" data-host-tab="polls">Polls</button>
+          <button class="host-tab" data-host-tab="polls">Interactions</button>
         </div>
 
         <!-- Questions tab -->
@@ -1035,7 +1685,7 @@
 
           <div style="height: 16px;"></div>
 
-          <details class="panel" style="background: white;">
+          <details class="panel" style="background: var(--surface);">
             <summary class="panel-header" style="cursor: pointer; list-style: none;">
               <div class="panel-title">Archived</div>
               <div class="panel-count" id="archived-count">0</div>
@@ -1047,12 +1697,17 @@
         <!-- Polls tab -->
         <div id="host-polls" style="display: none;">
           <div class="create-poll">
-            <div style="font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Create new poll</div>
+            <div style="font-size: 13px; font-weight: 600; color: var(--accent-strong); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Create new interaction</div>
+
+            <label class="form-label">Type</label>
+            <div class="type-picker" id="type-picker"></div>
+
             <div style="margin-bottom: 12px;">
-              <label class="form-label">Question</label>
+              <label class="form-label">Question / prompt</label>
               <input class="form-input" id="new-poll-q" placeholder="e.g. Which area should we prioritize for R&D?" />
             </div>
-            <div>
+
+            <div id="options-block">
               <label class="form-label">Options</label>
               <div id="new-poll-options">
                 <div class="poll-option-input">
@@ -1066,6 +1721,7 @@
               </div>
               <button class="btn btn-outline btn-sm" onclick="addPollOption()" style="margin-top: 4px;">+ Add option</button>
             </div>
+
             <div class="form-row">
               <button class="btn btn-success" onclick="createPoll(true)">Create & launch</button>
               <button class="btn btn-outline" onclick="createPoll(false)">Save as draft</button>
@@ -1074,7 +1730,7 @@
 
           <div class="panel">
             <div class="panel-header">
-              <div class="panel-title">All polls</div>
+              <div class="panel-title">All interactions</div>
               <div class="panel-count" id="polls-count">0</div>
             </div>
             <div class="panel-body" id="polls-list"></div>
@@ -1152,7 +1808,7 @@
       <div class="participant-tabs">
         <button class="p-tab active" data-p-tab="ask">Ask</button>
         <button class="p-tab" data-p-tab="vote">Vote on questions</button>
-        <button class="p-tab" data-p-tab="polls">Polls</button>
+        <button class="p-tab" data-p-tab="polls">Interactions</button>
       </div>
 
       <!-- Ask tab -->
@@ -1163,7 +1819,7 @@
           <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; margin-bottom: 12px;">
             <input class="form-input" id="p-name" placeholder="Your name (optional)" maxlength="40" style="flex: 1;" />
           </div>
-          <button class="btn btn-primary btn-block" onclick="submitQuestion()">Submit</button>
+          <button class="btn btn-primary btn-block" onclick="submitQuestion(this)">Submit</button>
           <div style="font-size: 11px; color: var(--muted); margin-top: 8px; text-align: center;">
             Your question will appear after the host approves it
           </div>
@@ -1187,31 +1843,85 @@
 
   <!-- ═══ PROJECTOR VIEW ═══ -->
   <div class="view" id="view-projector">
-    <div class="projector">
-      <div class="proj-header">
-        <div class="proj-bar"></div>
-        <div class="proj-title">Q3 2026 All-Hands — Live Q&A</div>
-        <div class="proj-spacer"></div>
-        <div class="proj-join">
-          <div class="proj-join-label">Join at quizt.app</div>
-          <div class="proj-join-code">QT-Q3-2026</div>
+    <div class="projector-wrapper" id="projector-wrapper">
+      <div class="proj-controls" id="proj-controls">
+        <div class="proj-nav-group">
+          <span class="proj-nav-label">View</span>
+          <select class="proj-poll-picker" id="proj-poll-picker" onchange="selectProjectorPoll(this.value)" title="Choose what to display">
+            <option value="questions">Show questions</option>
+          </select>
+        </div>
+
+        <div class="proj-nav-group" id="proj-nav-prevnext">
+          <button class="proj-control-btn" id="proj-prev" onclick="projectorPrev()" title="Previous">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <div class="proj-position" id="proj-position">—</div>
+          <button class="proj-control-btn" id="proj-next" onclick="projectorNext()" title="Next">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+
+        <div class="proj-nav-group">
+          <button class="proj-control-btn" onclick="toggleProjectorFullscreen()" title="Toggle full screen">
+            <svg id="fs-icon-enter" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+            <svg id="fs-icon-exit" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display:none;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"/></svg>
+            <span class="btn-label">Fullscreen</span>
+          </button>
         </div>
       </div>
+      <div class="projector">
+        <div class="proj-header">
+          <div class="proj-bar"></div>
+          <div class="proj-title">Q3 2026 All-Hands — Live Q&A</div>
+          <div class="proj-spacer"></div>
+          <div class="proj-join">
+            <div class="proj-join-label">Join at quizt.app</div>
+            <div class="proj-join-code">QT-Q3-2026</div>
+          </div>
+        </div>
 
-      <div class="proj-section-tabs">
-        <button class="proj-section-btn active" data-proj-tab="questions">Questions</button>
-        <button class="proj-section-btn" data-proj-tab="poll">Active poll</button>
+        <div id="proj-questions"></div>
+        <div id="proj-poll" style="display: none;"></div>
       </div>
-
-      <div id="proj-questions"></div>
-      <div id="proj-poll" style="display: none;"></div>
+      <div class="proj-footer">Powered by Quiz(T) · Join at <span>quizt.app/QT-Q3-2026</span></div>
     </div>
-    <div class="proj-footer">Powered by Quiz(T) · Join at <span>quizt.app/QT-Q3-2026</span></div>
   </div>
 
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="modal-backdrop" id="confirm-modal" onclick="closeConfirmModalBackdrop(event)">
+  <div class="modal">
+    <div class="modal-icon">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+    </div>
+    <div class="modal-title" id="confirm-modal-title">Are you sure?</div>
+    <div class="modal-body" id="confirm-modal-body">This action cannot be undone.</div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeConfirmModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirm-modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="export-menu" id="export-menu">
+  <button class="export-menu-item" onclick="exportExcel()">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6h6v6m-3-9V4m-7 4h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8a2 2 0 012-2z"/></svg>
+    <div>
+      <div class="export-menu-item-title">Export to Excel</div>
+      <div class="export-menu-item-desc">All raw data: questions, polls, votes</div>
+    </div>
+  </button>
+  <button class="export-menu-item" onclick="exportPDF()" style="opacity: 0.5; cursor: not-allowed;" disabled>
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    <div>
+      <div class="export-menu-item-title">Export PDF summary <span style="color: var(--muted); font-weight: 400; font-size: 10px;">— coming in v4</span></div>
+      <div class="export-menu-item-desc">Polished report with key insights</div>
+    </div>
+  </button>
+</div>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════
@@ -1219,6 +1929,45 @@
    When ready for production: swap the storage layer below for
    Supabase calls. Everything else stays the same.
    ═══════════════════════════════════════════════════════════════ */
+
+// ── Interaction types ──
+const INTERACTION_TYPES = {
+  multiple_choice: {
+    label: 'Multiple choice',
+    desc: 'Pick one option from a list',
+    icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+    needsOptions: true,
+    minOptions: 2
+  },
+  word_cloud: {
+    label: 'Word cloud',
+    desc: 'Free-text submissions, sized by frequency',
+    icon: 'M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z',
+    needsOptions: false
+  },
+  open_text: {
+    label: 'Open text',
+    desc: 'Collect free-text responses, list view',
+    icon: 'M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z',
+    needsOptions: false
+  },
+  rating: {
+    label: 'Rating',
+    desc: '1–5 star scale, shows average',
+    icon: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
+    needsOptions: false
+  },
+  ranking: {
+    label: 'Ranking',
+    desc: 'Drag to order options by preference',
+    icon: 'M4 6h16M4 10h16M4 14h16M4 18h16',
+    needsOptions: true,
+    minOptions: 2
+  }
+};
+
+function getType(p) { return p.type || 'multiple_choice'; }
+function getTypeDef(p) { return INTERACTION_TYPES[getType(p)] || INTERACTION_TYPES.multiple_choice; }
 
 // ── Storage layer (swap this block for Supabase later) ──
 const STORAGE_KEY = 'quizt_session_v1';
@@ -1228,9 +1977,37 @@ const POLL_VOTES_KEY = 'quizt_pollvotes_v1';
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      refreshStaleTimestamps(parsed);
+      return parsed;
+    }
   } catch(e) {}
   return getDefaultState();
+}
+
+// If seed data is older than 2 hours, bump timestamps so the demo
+// always shows fresh "just now / 5m ago" labels rather than "18h ago".
+// Only affects the original seed questions and poll.
+function refreshStaleTimestamps(s) {
+  const now = Date.now();
+  const twoHours = 2 * 60 * 60 * 1000;
+  const SEED_IDS = new Set([1, 2, 3]);
+  const offsets = { 1: 600000, 2: 480000, 3: 300000 };
+  let touched = false;
+  (s.questions || []).forEach(q => {
+    if (SEED_IDS.has(q.id) && q.author && (now - q.createdAt) > twoHours) {
+      q.createdAt = now - (offsets[q.id] || 300000);
+      touched = true;
+    }
+  });
+  (s.polls || []).forEach(p => {
+    if (p.id === 1 && (now - p.createdAt) > twoHours) {
+      p.createdAt = now - 200000;
+      touched = true;
+    }
+  });
+  return touched;
 }
 
 function saveState() {
@@ -1255,6 +2032,7 @@ function getDefaultState() {
     polls: [
       {
         id: 1,
+        type: 'multiple_choice',
         question: 'Which R&D area should be our top priority next quarter?',
         options: [
           { id: 'a', text: 'Renewable energy storage', votes: 28 },
@@ -1262,6 +2040,7 @@ function getDefaultState() {
           { id: 'c', text: 'Smart grid integration', votes: 15 },
           { id: 'd', text: 'Hydrogen production', votes: 22 }
         ],
+        responses: [],
         status: 'live',
         createdAt: Date.now() - 200000
       }
@@ -1289,6 +2068,10 @@ function savePollVotes(v) { localStorage.setItem(POLL_VOTES_KEY, JSON.stringify(
 let state = loadState();
 let myVotes = loadVotes();
 let myPollVotes = loadPollVotes();
+let myPollRankings = (() => {
+  try { return JSON.parse(localStorage.getItem('quizt_rankings_v1') || '{}'); }
+  catch(e) { return {}; }
+})();
 
 // ── Utility ──
 function escapeHtml(s) {
@@ -1306,6 +2089,24 @@ function showToast(msg, success) {
   t.textContent = msg;
   t.className = 'toast show' + (success ? ' success' : '');
   setTimeout(() => t.className = 'toast', 2200);
+}
+
+// Button feedback: briefly disable + show success check, then return to normal.
+// Call with the button element that was clicked.
+function flashSubmitSuccess(btn) {
+  if (!btn) return;
+  const originalLabel = btn.innerHTML;
+  btn.classList.add('is-submitting');
+  setTimeout(() => {
+    btn.classList.remove('is-submitting');
+    btn.classList.add('is-submitted');
+    const labelText = btn.textContent.trim();
+    btn.innerHTML = 'Submitted';
+    setTimeout(() => {
+      btn.classList.remove('is-submitted');
+      btn.innerHTML = originalLabel;
+    }, 1400);
+  }, 150);
 }
 
 // ── View switching ──
@@ -1339,19 +2140,246 @@ document.querySelectorAll('.p-tab').forEach(btn => {
   });
 });
 
-document.querySelectorAll('.proj-section-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.proj-section-btn').forEach(x => x.classList.remove('active'));
-    btn.classList.add('active');
-    state.projectorSection = btn.dataset.projTab;
-    document.getElementById('proj-questions').style.display = btn.dataset.projTab === 'questions' ? 'block' : 'none';
-    document.getElementById('proj-poll').style.display = btn.dataset.projTab === 'poll' ? 'block' : 'none';
-    saveState();
-    render();
-  });
+document.getElementById('sort-questions').addEventListener('change', render);
+
+// ── Theme (dark mode) ──
+function loadTheme() {
+  const saved = localStorage.getItem('quizt_theme') || 'light';
+  applyTheme(saved);
+}
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const sun = document.getElementById('theme-icon-sun');
+  const moon = document.getElementById('theme-icon-moon');
+  if (sun && moon) {
+    sun.style.display = theme === 'dark' ? 'block' : 'none';
+    moon.style.display = theme === 'dark' ? 'none' : 'block';
+  }
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('quizt_theme', next);
+  applyTheme(next);
+}
+
+// ── Export menu ──
+function showExportMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('export-menu');
+  const btn = document.getElementById('export-btn');
+  const rect = btn.getBoundingClientRect();
+  menu.style.top = (rect.bottom + 6) + 'px';
+  menu.style.right = (window.innerWidth - rect.right) + 'px';
+  menu.classList.toggle('show');
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('export-menu');
+  if (menu && !menu.contains(e.target) && e.target.id !== 'export-btn' && !e.target.closest('#export-btn')) {
+    menu.classList.remove('show');
+  }
 });
 
-document.getElementById('sort-questions').addEventListener('change', render);
+function exportExcel() {
+  document.getElementById('export-menu').classList.remove('show');
+  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  const sessionMeta = [
+    ['Quiz(T) — Session Export'],
+    ['Generated', new Date().toLocaleString()],
+    ['Session code', state.sessionCode],
+    ['Session title', state.sessionTitle],
+    [],
+    ['Total questions', state.questions.length],
+    ['Live questions', state.questions.filter(q => q.status === 'live').length],
+    ['Pending questions', state.questions.filter(q => q.status === 'pending').length],
+    ['Archived questions', state.questions.filter(q => q.status === 'archived').length],
+    ['Total upvotes', state.questions.reduce((s, q) => s + q.votes, 0)],
+    ['Total polls', state.polls.length]
+  ];
+  const wsMeta = XLSX.utils.aoa_to_sheet(sessionMeta);
+  wsMeta['!cols'] = [{ wch: 20 }, { wch: 40 }];
+  XLSX.utils.book_append_sheet(wb, wsMeta, 'Session info');
+
+  const qHeaders = ['ID', 'Status', 'Author', 'Question', 'Upvotes', 'Submitted at'];
+  const qRows = [...state.questions]
+    .sort((a, b) => b.votes - a.votes)
+    .map(q => [q.id, q.status, q.author, q.text, q.votes, new Date(q.createdAt).toLocaleString()]);
+  const wsQ = XLSX.utils.aoa_to_sheet([qHeaders, ...qRows]);
+  wsQ['!cols'] = [{ wch: 6 }, { wch: 10 }, { wch: 18 }, { wch: 60 }, { wch: 8 }, { wch: 22 }];
+  XLSX.utils.book_append_sheet(wb, wsQ, 'Questions');
+
+  if (state.polls.length > 0) {
+    // Sheet 1: summary of all interactions
+    const summaryRows = [['ID', 'Type', 'Status', 'Question', 'Total responses', 'Created at']];
+    state.polls.forEach(p => {
+      const type = getType(p);
+      const def = getTypeDef(p);
+      let totalResp;
+      if (type === 'multiple_choice' || type === 'ranking') {
+        totalResp = p.options.reduce((s,o) => s + o.votes, 0);
+      } else {
+        totalResp = (p.responses || []).length;
+      }
+      summaryRows.push([p.id, def.label, p.status, p.question, totalResp, new Date(p.createdAt).toLocaleString()]);
+    });
+    const wsSum = XLSX.utils.aoa_to_sheet(summaryRows);
+    wsSum['!cols'] = [{ wch: 6 }, { wch: 16 }, { wch: 10 }, { wch: 60 }, { wch: 14 }, { wch: 22 }];
+    XLSX.utils.book_append_sheet(wb, wsSum, 'Interactions summary');
+
+    // Sheet 2: option-based interactions (multiple choice + ranking)
+    const optionRows = [['Interaction ID', 'Type', 'Question', 'Option', 'Votes/Points']];
+    state.polls.filter(p => {
+      const type = getType(p);
+      return type === 'multiple_choice' || type === 'ranking';
+    }).forEach(p => {
+      const def = getTypeDef(p);
+      p.options.forEach(o => {
+        optionRows.push([p.id, def.label, p.question, o.text, o.votes]);
+      });
+    });
+    if (optionRows.length > 1) {
+      const wsOpts = XLSX.utils.aoa_to_sheet(optionRows);
+      wsOpts['!cols'] = [{ wch: 14 }, { wch: 16 }, { wch: 50 }, { wch: 30 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, wsOpts, 'Choices & rankings');
+    }
+
+    // Sheet 3: text responses (word cloud + open text)
+    const textRows = [['Interaction ID', 'Type', 'Question', 'Response', 'Submitted at']];
+    state.polls.filter(p => {
+      const type = getType(p);
+      return type === 'word_cloud' || type === 'open_text';
+    }).forEach(p => {
+      const def = getTypeDef(p);
+      (p.responses || []).forEach(r => {
+        textRows.push([p.id, def.label, p.question, r.text, new Date(r.at).toLocaleString()]);
+      });
+    });
+    if (textRows.length > 1) {
+      const wsText = XLSX.utils.aoa_to_sheet(textRows);
+      wsText['!cols'] = [{ wch: 14 }, { wch: 16 }, { wch: 50 }, { wch: 50 }, { wch: 22 }];
+      XLSX.utils.book_append_sheet(wb, wsText, 'Text responses');
+    }
+
+    // Sheet 4: ratings
+    const ratingRows = [['Interaction ID', 'Question', 'Average', 'Total ratings', '1★', '2★', '3★', '4★', '5★']];
+    state.polls.filter(p => getType(p) === 'rating').forEach(p => {
+      const responses = p.responses || [];
+      const total = responses.length;
+      const sum = responses.reduce((s,r) => s + r.value, 0);
+      const avg = total > 0 ? (sum / total).toFixed(2) : 0;
+      const counts = [0,0,0,0,0];
+      responses.forEach(r => { if (r.value >= 1 && r.value <= 5) counts[r.value-1]++; });
+      ratingRows.push([p.id, p.question, avg, total, counts[0], counts[1], counts[2], counts[3], counts[4]]);
+    });
+    if (ratingRows.length > 1) {
+      const wsRate = XLSX.utils.aoa_to_sheet(ratingRows);
+      wsRate['!cols'] = [{ wch: 14 }, { wch: 50 }, { wch: 10 }, { wch: 14 }, { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 }];
+      XLSX.utils.book_append_sheet(wb, wsRate, 'Ratings');
+    }
+  }
+
+  const filename = `QuizT_${state.sessionCode}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  showToast('Excel file downloaded', true);
+}
+
+function exportPDF() {
+  showToast('PDF export coming in v4');
+}
+
+// ── Projector controls ──
+function selectProjectorPoll(value) {
+  if (value === 'questions') {
+    state.projectorSection = 'questions';
+    state.activePollId = null;
+  } else {
+    state.projectorSection = 'poll';
+    state.activePollId = parseInt(value, 10);
+  }
+  saveState();
+  render();
+}
+
+// Get the ordered list of available "views" for prev/next nav:
+// [ {value: 'questions', label: '...'}, {value: <pollId>, label: '...'}, ... ]
+function getProjectorViews() {
+  const livePolls = state.polls.filter(p => p.status === 'live');
+  const views = [{ value: 'questions', label: 'Questions' }];
+  livePolls.forEach(p => {
+    const def = getTypeDef(p);
+    views.push({ value: String(p.id), label: `${def.label}: ${p.question.substring(0, 30)}` });
+  });
+  return views;
+}
+
+// Find current view index
+function getCurrentProjectorViewIndex() {
+  const views = getProjectorViews();
+  const currentValue = state.projectorSection === 'poll' && state.activePollId ? String(state.activePollId) : 'questions';
+  return views.findIndex(v => v.value === currentValue);
+}
+
+function projectorPrev() {
+  const views = getProjectorViews();
+  const idx = getCurrentProjectorViewIndex();
+  if (idx > 0) selectProjectorPoll(views[idx - 1].value);
+}
+
+function projectorNext() {
+  const views = getProjectorViews();
+  const idx = getCurrentProjectorViewIndex();
+  if (idx >= 0 && idx < views.length - 1) selectProjectorPoll(views[idx + 1].value);
+}
+
+// Keyboard shortcuts for projector (arrow keys when on projector view)
+document.addEventListener('keydown', (e) => {
+  const projectorViewActive = document.getElementById('view-projector')?.classList.contains('active');
+  if (!projectorViewActive) return;
+  // Don't hijack keys when user is typing
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); projectorNext(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); projectorPrev(); }
+  else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleProjectorFullscreen(); }
+  else if (e.key === 'Escape' && document.fullscreenElement) {
+    // handled by browser
+  }
+});
+
+function toggleProjectorFullscreen() {
+  const wrapper = document.getElementById('projector-wrapper');
+  const enter = document.getElementById('fs-icon-enter');
+  const exit = document.getElementById('fs-icon-exit');
+  if (!document.fullscreenElement) {
+    if (wrapper.requestFullscreen) {
+      wrapper.requestFullscreen().catch(err => {
+        wrapper.classList.add('fullscreen');
+        showToast('Fullscreen API blocked — using simulated fullscreen');
+      });
+    } else {
+      wrapper.classList.add('fullscreen');
+    }
+    enter.style.display = 'none';
+    exit.style.display = 'block';
+  } else {
+    document.exitFullscreen();
+    wrapper.classList.remove('fullscreen');
+    enter.style.display = 'block';
+    exit.style.display = 'none';
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const wrapper = document.getElementById('projector-wrapper');
+  const enter = document.getElementById('fs-icon-enter');
+  const exit = document.getElementById('fs-icon-exit');
+  if (!document.fullscreenElement) {
+    wrapper.classList.remove('fullscreen');
+    enter.style.display = 'block';
+    exit.style.display = 'none';
+  }
+});
 
 // ── Settings ──
 function toggleSetting(key, btn) {
@@ -1395,7 +2423,7 @@ function saveEditQuestion(id) {
 }
 
 // ── Question submission (participant) ──
-function submitQuestion() {
+function submitQuestion(btn) {
   const text = document.getElementById('p-question-text').value.trim();
   const name = document.getElementById('p-name').value.trim();
   if (!text) { showToast('Please type a question'); return; }
@@ -1412,6 +2440,7 @@ function submitQuestion() {
   saveState();
   render();
   showToast(state.settings.moderation ? 'Submitted — waiting for approval' : 'Submitted — now live!', true);
+  flashSubmitSuccess(btn);
 }
 
 // ── Voting (participant) ──
@@ -1432,6 +2461,37 @@ function toggleVote(id) {
 }
 
 // ── Polls ──
+// ── Interaction creation (type-aware) ──
+let selectedInteractionType = 'multiple_choice';
+
+function renderTypePicker() {
+  const picker = document.getElementById('type-picker');
+  if (!picker) return;
+  picker.innerHTML = Object.entries(INTERACTION_TYPES).map(([key, def]) => `
+    <button class="type-card ${key === selectedInteractionType ? 'selected' : ''}" onclick="selectInteractionType('${key}')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${def.icon}"/></svg>
+      <div class="type-card-label">${def.label}</div>
+    </button>
+  `).join('');
+}
+
+function selectInteractionType(type) {
+  selectedInteractionType = type;
+  renderTypePicker();
+  // Show/hide options block based on type
+  const def = INTERACTION_TYPES[type];
+  document.getElementById('options-block').style.display = def.needsOptions ? 'block' : 'none';
+  // Update prompt placeholder by type
+  const placeholders = {
+    multiple_choice: 'e.g. Which area should we prioritize for R&D?',
+    word_cloud: 'e.g. Describe our team culture in one word',
+    open_text: 'e.g. What\'s one thing we should improve next quarter?',
+    rating: 'e.g. How would you rate today\'s session?',
+    ranking: 'e.g. Rank these priorities from most to least important'
+  };
+  document.getElementById('new-poll-q').placeholder = placeholders[type] || '';
+}
+
 function addPollOption() {
   const div = document.createElement('div');
   div.className = 'poll-option-input';
@@ -1446,23 +2506,30 @@ function removePollOption(btn) {
 }
 function createPoll(launch) {
   const q = document.getElementById('new-poll-q').value.trim();
-  if (!q) { showToast('Please enter a poll question'); return; }
-  const optInputs = document.querySelectorAll('#new-poll-options .poll-option-input input');
-  const options = [];
-  optInputs.forEach((inp, i) => {
-    const v = inp.value.trim();
-    if (v) options.push({ id: String.fromCharCode(97 + i), text: v, votes: 0 });
-  });
-  if (options.length < 2) { showToast('Need at least 2 options'); return; }
-  const poll = {
+  if (!q) { showToast('Please enter a question'); return; }
+  const def = INTERACTION_TYPES[selectedInteractionType];
+  const interaction = {
     id: state.nextPollId++,
+    type: selectedInteractionType,
     question: q,
-    options,
+    options: [],
+    responses: [],
     status: launch ? 'live' : 'draft',
     createdAt: Date.now()
   };
-  state.polls.push(poll);
-  if (launch) state.activePollId = poll.id;
+  if (def.needsOptions) {
+    const optInputs = document.querySelectorAll('#new-poll-options .poll-option-input input');
+    optInputs.forEach((inp, i) => {
+      const v = inp.value.trim();
+      if (v) interaction.options.push({ id: String.fromCharCode(97 + i), text: v, votes: 0 });
+    });
+    if (interaction.options.length < (def.minOptions || 2)) {
+      showToast(`Need at least ${def.minOptions || 2} options`);
+      return;
+    }
+  }
+  state.polls.push(interaction);
+  if (launch) state.activePollId = interaction.id;
   document.getElementById('new-poll-q').value = '';
   document.getElementById('new-poll-options').innerHTML = `
     <div class="poll-option-input"><input class="form-input" placeholder="Option 1" /><button class="icon-btn" onclick="removePollOption(this)">×</button></div>
@@ -1470,7 +2537,7 @@ function createPoll(launch) {
   `;
   saveState();
   render();
-  showToast(launch ? 'Poll launched' : 'Poll saved as draft', true);
+  showToast(launch ? `${def.label} launched` : `${def.label} saved as draft`, true);
 }
 function launchPoll(id) {
   const p = state.polls.find(x => x.id === id);
@@ -1481,10 +2548,20 @@ function closePoll(id) {
   if (p) { p.status = 'closed'; if (state.activePollId === id) state.activePollId = null; saveState(); render(); }
 }
 function deletePoll(id) {
-  if (!confirm('Delete this poll?')) return;
-  state.polls = state.polls.filter(x => x.id !== id);
-  if (state.activePollId === id) state.activePollId = null;
-  saveState(); render();
+  const p = state.polls.find(x => x.id === id);
+  if (!p) return;
+  showConfirmModal({
+    title: 'Delete this interaction?',
+    body: `<strong>"${p.question.substring(0, 80)}${p.question.length > 80 ? '...' : ''}"</strong><br><br>All responses will be permanently removed.`,
+    confirmLabel: 'Delete',
+    confirmClass: 'btn-danger',
+    onConfirm: () => {
+      state.polls = state.polls.filter(x => x.id !== id);
+      if (state.activePollId === id) state.activePollId = null;
+      saveState(); render();
+      showToast('Deleted', true);
+    }
+  });
 }
 function showPollOnProjector(id) {
   state.activePollId = id;
@@ -1497,7 +2574,7 @@ function votePoll(pollId, optId) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
   const prev = myPollVotes[pollId];
-  if (prev === optId) return; // already selected
+  if (prev === optId) return;
   if (prev) {
     const o = poll.options.find(x => x.id === prev);
     if (o) o.votes = Math.max(0, o.votes - 1);
@@ -1510,17 +2587,190 @@ function votePoll(pollId, optId) {
   render();
 }
 
-// ── Reset (demo only) ──
-function resetSession() {
-  if (!confirm('Clear all questions, votes, and polls? This cannot be undone.')) return;
-  state = getDefaultState();
-  myVotes = [];
-  myPollVotes = {};
-  saveState();
-  saveVotes(myVotes);
+// New: text response (word cloud, open text)
+function submitTextResponse(pollId, btn) {
+  const poll = state.polls.find(x => x.id === pollId);
+  if (!poll || poll.status !== 'live') return;
+  const input = document.getElementById('p-text-input-' + pollId);
+  if (!input) return;
+  const v = input.value.trim();
+  if (!v) { showToast('Please type a response'); return; }
+  if (v.length > 280) { showToast('Too long (max 280 characters)'); return; }
+  // Word cloud limits to single word/short phrase
+  if (poll.type === 'word_cloud' && v.split(/\s+/).length > 3) {
+    showToast('Word cloud responses should be 1-3 words');
+    return;
+  }
+  if (!poll.responses) poll.responses = [];
+  poll.responses.push({ text: v, at: Date.now() });
+  myPollVotes[pollId] = 'submitted_' + Date.now();
   savePollVotes(myPollVotes);
+  input.value = '';
+  saveState();
+  flashSubmitSuccess(btn);
+  // Slight delay before re-render so the user sees the success state
+  setTimeout(() => { render(); }, 200);
+  showToast('Response submitted', true);
+}
+
+// New: rating submission
+function submitRating(pollId, value) {
+  const poll = state.polls.find(x => x.id === pollId);
+  if (!poll || poll.status !== 'live') return;
+  if (!poll.responses) poll.responses = [];
+  // Replace if already rated
+  const prev = myPollVotes[pollId];
+  if (prev && prev.startsWith('rating_')) {
+    const oldRating = parseInt(prev.split('_')[1], 10);
+    const idx = poll.responses.findIndex(r => r.value === oldRating && r.byMe);
+    if (idx >= 0) poll.responses.splice(idx, 1);
+  }
+  poll.responses.push({ value, byMe: true, at: Date.now() });
+  myPollVotes[pollId] = 'rating_' + value;
+  savePollVotes(myPollVotes);
+  saveState();
   render();
-  showToast('Session reset', true);
+  showToast(`You rated: ${value} ⭐`, true);
+}
+
+// New: ranking submission (drag-drop produces ordered IDs)
+function submitRanking(pollId, orderedIds) {
+  const poll = state.polls.find(x => x.id === pollId);
+  if (!poll || poll.status !== 'live') return;
+  // Each option gets points = (totalOptions - position). #1 gets the highest.
+  const total = poll.options.length;
+  const prev = myPollVotes[pollId];
+  if (prev && prev.startsWith('ranking_')) {
+    // Undo previous ranking
+    try {
+      const prevOrder = JSON.parse(prev.replace('ranking_', ''));
+      prevOrder.forEach((id, i) => {
+        const opt = poll.options.find(o => o.id === id);
+        if (opt) opt.votes = Math.max(0, opt.votes - (total - i));
+      });
+    } catch(e) {}
+  }
+  orderedIds.forEach((id, i) => {
+    const opt = poll.options.find(o => o.id === id);
+    if (opt) opt.votes += (total - i);
+  });
+  myPollVotes[pollId] = 'ranking_' + JSON.stringify(orderedIds);
+  savePollVotes(myPollVotes);
+  saveState();
+  render();
+  showToast('Ranking submitted', true);
+}
+
+// Submit final ranking from drag-drop UI
+function confirmRanking(pollId) {
+  const poll = state.polls.find(x => x.id === pollId);
+  if (!poll) return;
+  let order = myPollRankings[pollId];
+  if (!order) order = poll.options.map(o => o.id);
+  submitRanking(pollId, order);
+}
+
+// Allow user to re-rate
+function changeRating(pollId) {
+  const poll = state.polls.find(x => x.id === pollId);
+  if (!poll) return;
+  const prev = myPollVotes[pollId];
+  if (prev && prev.startsWith('rating_')) {
+    const oldRating = parseInt(prev.split('_')[1], 10);
+    const idx = poll.responses.findIndex(r => r.value === oldRating && r.byMe);
+    if (idx >= 0) poll.responses.splice(idx, 1);
+  }
+  delete myPollVotes[pollId];
+  savePollVotes(myPollVotes);
+  saveState();
+  render();
+}
+
+// Drag-drop helpers for ranking
+let dragSource = null;
+function rankingDragStart(e, idx) {
+  dragSource = idx;
+  e.target.classList.add('dragging');
+}
+function rankingDragEnd(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.ranking-item').forEach(el => el.classList.remove('drag-over'));
+}
+function rankingDragOver(e, idx) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function rankingDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function rankingDrop(e, targetIdx, pollId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (dragSource === null || dragSource === targetIdx) return;
+  // Reorder local state
+  if (!myPollRankings) myPollRankings = {};
+  let order = myPollRankings[pollId];
+  const poll = state.polls.find(x => x.id === pollId);
+  if (!order) order = poll.options.map(o => o.id);
+  const moved = order.splice(dragSource, 1)[0];
+  order.splice(targetIdx, 0, moved);
+  myPollRankings[pollId] = order;
+  localStorage.setItem('quizt_rankings_v1', JSON.stringify(myPollRankings));
+  dragSource = null;
+  render();
+}
+
+// ── Reset (demo only) ──
+// Confirmation modal (replaces native confirm() for destructive actions)
+function showConfirmModal(opts) {
+  const modal = document.getElementById('confirm-modal');
+  document.getElementById('confirm-modal-title').textContent = opts.title || 'Are you sure?';
+  document.getElementById('confirm-modal-body').innerHTML = opts.body || 'This action cannot be undone.';
+  const confirmBtn = document.getElementById('confirm-modal-confirm');
+  confirmBtn.textContent = opts.confirmLabel || 'Confirm';
+  confirmBtn.className = 'btn ' + (opts.confirmClass || 'btn-danger');
+  // Re-bind the confirm handler cleanly
+  const newBtn = confirmBtn.cloneNode(true);
+  confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+  newBtn.addEventListener('click', () => {
+    closeConfirmModal();
+    if (opts.onConfirm) opts.onConfirm();
+  });
+  modal.classList.add('show');
+}
+function closeConfirmModal() {
+  document.getElementById('confirm-modal').classList.remove('show');
+}
+function closeConfirmModalBackdrop(e) {
+  if (e.target.id === 'confirm-modal') closeConfirmModal();
+}
+// Close on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const m = document.getElementById('confirm-modal');
+    if (m && m.classList.contains('show')) closeConfirmModal();
+  }
+});
+
+function resetSession() {
+  showConfirmModal({
+    title: 'Reset all session data?',
+    body: 'This will permanently delete <strong>all questions, votes, and interactions</strong>. This cannot be undone.',
+    confirmLabel: 'Reset everything',
+    confirmClass: 'btn-danger',
+    onConfirm: () => {
+      state = getDefaultState();
+      myVotes = [];
+      myPollVotes = {};
+      myPollRankings = {};
+      saveState();
+      saveVotes(myVotes);
+      savePollVotes(myPollVotes);
+      localStorage.removeItem('quizt_rankings_v1');
+      render();
+      showToast('Session reset', true);
+    }
+  });
 }
 
 // ── Render ──
@@ -1617,20 +2867,103 @@ function questionCardHtml(q, status) {
 }
 
 function pollCardHtml(p) {
-  const total = p.options.reduce((s,o) => s + o.votes, 0) || 1;
+  const type = getType(p);
+  const def = getTypeDef(p);
   const isActive = state.activePollId === p.id;
-  const optsHtml = p.options.map(o => {
-    const pct = Math.round((o.votes / total) * 100);
-    return `
-      <div class="poll-option-row">
-        <div class="poll-option-bar" style="width: ${pct}%;"></div>
-        <div class="poll-option-text">${escapeHtml(o.text)}</div>
-        <div class="poll-option-count">${o.votes}</div>
-        <div class="poll-option-pct">${pct}%</div>
-      </div>
-    `;
-  }).join('');
 
+  // Type-specific results display
+  let resultsHtml = '';
+  if (type === 'multiple_choice') {
+    const total = p.options.reduce((s,o) => s + o.votes, 0) || 1;
+    resultsHtml = `<div class="poll-options">` + p.options.map(o => {
+      const pct = Math.round((o.votes / total) * 100);
+      return `
+        <div class="poll-option-row">
+          <div class="poll-option-bar" style="width: ${pct}%;"></div>
+          <div class="poll-option-text">${escapeHtml(o.text)}</div>
+          <div class="poll-option-count">${o.votes}</div>
+          <div class="poll-option-pct">${pct}%</div>
+        </div>
+      `;
+    }).join('') + `</div>`;
+  } else if (type === 'word_cloud') {
+    const responses = p.responses || [];
+    if (responses.length === 0) {
+      resultsHtml = `<div class="word-cloud-display"><span class="word-cloud-empty">No responses yet</span></div>`;
+    } else {
+      const counts = {};
+      responses.forEach(r => {
+        const word = r.text.toLowerCase().trim();
+        counts[word] = (counts[word] || 0) + 1;
+      });
+      const max = Math.max(...Object.values(counts));
+      const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+      resultsHtml = `<div class="word-cloud-display">` + sorted.map(([word, count]) => {
+        const size = 13 + Math.round((count / max) * 18);
+        const weight = count === max ? 700 : (count > max / 2 ? 600 : 500);
+        return `<span class="word-cloud-word" style="font-size: ${size}px; font-weight: ${weight};">${escapeHtml(word)}${count > 1 ? ` (${count})` : ''}</span>`;
+      }).join('') + `</div>`;
+    }
+  } else if (type === 'open_text') {
+    const responses = p.responses || [];
+    if (responses.length === 0) {
+      resultsHtml = `<div class="word-cloud-display"><span class="word-cloud-empty">No responses yet</span></div>`;
+    } else {
+      const sorted = [...responses].sort((a,b) => b.at - a.at);
+      resultsHtml = `<div class="open-text-list">` + sorted.map(r =>
+        `<div class="open-text-item">${escapeHtml(r.text)}</div>`
+      ).join('') + `</div>`;
+    }
+  } else if (type === 'rating') {
+    const responses = p.responses || [];
+    const total = responses.length;
+    if (total === 0) {
+      resultsHtml = `<div class="rating-display"><span class="word-cloud-empty">No ratings yet</span></div>`;
+    } else {
+      const sum = responses.reduce((s,r) => s + r.value, 0);
+      const avg = (sum / total).toFixed(1);
+      const counts = [0,0,0,0,0];
+      responses.forEach(r => { if (r.value >= 1 && r.value <= 5) counts[r.value-1]++; });
+      const starsFilled = Math.round(parseFloat(avg));
+      const starsHtml = [1,2,3,4,5].map(n =>
+        `<svg class="rating-star ${n <= starsFilled ? '' : 'empty'}" fill="currentColor" viewBox="0 0 24 24"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>`
+      ).join('');
+      const breakdownHtml = [5,4,3,2,1].map(n => {
+        const c = counts[n-1];
+        const pct = total > 0 ? (c / total) * 100 : 0;
+        return `
+          <div class="rating-bar-row">
+            <div class="rating-bar-label">${n} ★</div>
+            <div class="rating-bar-bg"><div class="rating-bar-fill" style="width: ${pct}%;"></div></div>
+            <div class="rating-bar-count">${c}</div>
+          </div>
+        `;
+      }).join('');
+      resultsHtml = `
+        <div class="rating-display">
+          <div>
+            <div class="rating-avg">${avg}</div>
+            <div class="rating-meta">${total} rating${total === 1 ? '' : 's'}</div>
+          </div>
+          <div style="flex: 1; min-width: 180px;">${breakdownHtml}</div>
+          <div class="rating-stars">${starsHtml}</div>
+        </div>
+      `;
+    }
+  } else if (type === 'ranking') {
+    // Show options sorted by points (each rank gives points = total - position)
+    const total = p.options.reduce((s,o) => s + o.votes, 0);
+    const sorted = [...p.options].sort((a,b) => b.votes - a.votes);
+    resultsHtml = `<div class="ranking-list">` + sorted.map((o, i) => `
+      <div class="ranking-item" style="cursor: default;">
+        <div class="ranking-rank">${i + 1}</div>
+        <div class="ranking-text">${escapeHtml(o.text)}</div>
+        <div class="ranking-score">${o.votes} pts</div>
+      </div>
+    `).join('') + `</div>`;
+  }
+
+  // Action buttons
   let actions = '';
   if (p.status === 'draft') {
     actions = `<button class="btn btn-success btn-sm" onclick="launchPoll(${p.id})">Launch</button>`;
@@ -1642,13 +2975,28 @@ function pollCardHtml(p) {
   }
   actions += `<button class="btn btn-danger btn-sm" onclick="deletePoll(${p.id})">Delete</button>`;
 
+  // Total responses summary
+  let totalLabel = '';
+  if (type === 'multiple_choice' || type === 'ranking') {
+    const t = p.options.reduce((s,o) => s + o.votes, 0);
+    totalLabel = type === 'ranking' ? `${t} points cast` : `${t} total votes`;
+  } else {
+    totalLabel = `${(p.responses || []).length} response${(p.responses || []).length === 1 ? '' : 's'}`;
+  }
+
   return `
     <div class="poll-card ${p.status}">
+      <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+        <span class="interaction-type-badge">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${def.icon}"/></svg>
+          ${def.label}
+        </span>
+      </div>
       <div class="poll-question">${escapeHtml(p.question)}</div>
-      <div class="poll-options">${optsHtml}</div>
+      ${resultsHtml}
       <div class="poll-meta">
         <span class="q-status-pill ${p.status === 'live' ? 'live' : (p.status === 'draft' ? 'pending' : 'archived')}">${p.status.toUpperCase()}</span>
-        <span>${total} total votes</span>
+        <span>${totalLabel}</span>
         <div style="flex:1;"></div>
         ${actions}
       </div>
@@ -1678,40 +3026,149 @@ function renderParticipant() {
       }).join('');
   document.getElementById('p-questions-list').innerHTML = html;
 
-  // Polls
+  // Polls / Interactions
   const livePolls = state.polls.filter(p => p.status === 'live');
   const pollHtml = livePolls.length === 0
-    ? `<div class="p-section"><div class="empty-state"><div class="empty-state-text">No active polls</div></div></div>`
+    ? `<div class="p-section"><div class="empty-state"><div class="empty-state-text">No active interactions</div></div></div>`
     : livePolls.map(p => {
+        const type = getType(p);
+        const def = getTypeDef(p);
         const myChoice = myPollVotes[p.id];
         const voted = !!myChoice;
-        const total = p.options.reduce((s,o) => s + o.votes, 0) || 1;
-        const optsHtml = p.options.map(o => {
-          if (voted) {
-            const pct = Math.round((o.votes / total) * 100);
-            const isMine = myChoice === o.id;
+
+        let bodyHtml = '';
+        let titleHtml = '';
+
+        if (type === 'multiple_choice') {
+          const total = p.options.reduce((s,o) => s + o.votes, 0) || 1;
+          titleHtml = voted ? 'Live results' : 'Tap to vote';
+          bodyHtml = p.options.map(o => {
+            if (voted) {
+              const pct = Math.round((o.votes / total) * 100);
+              const isMine = myChoice === o.id;
+              return `
+                <div class="poll-option-row" style="${isMine ? 'border: 1.5px solid var(--cyan);' : ''}">
+                  <div class="poll-option-bar" style="width: ${pct}%;"></div>
+                  <div class="poll-option-text">${escapeHtml(o.text)}${isMine ? ' ✓' : ''}</div>
+                  <div class="poll-option-count">${o.votes}</div>
+                  <div class="poll-option-pct">${pct}%</div>
+                </div>
+              `;
+            }
             return `
-              <div class="poll-option-row" style="${isMine ? 'border: 1.5px solid var(--cyan);' : ''}">
-                <div class="poll-option-bar" style="width: ${pct}%;"></div>
-                <div class="poll-option-text">${escapeHtml(o.text)}${isMine ? ' ✓' : ''}</div>
-                <div class="poll-option-count">${o.votes}</div>
-                <div class="poll-option-pct">${pct}%</div>
-              </div>
+              <button class="p-poll-option" onclick="votePoll(${p.id}, '${o.id}')">
+                <div class="p-poll-option-radio"></div>
+                <div>${escapeHtml(o.text)}</div>
+              </button>
+            `;
+          }).join('');
+          if (voted) bodyHtml += `<div style="font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center;">${total} total votes</div>`;
+
+        } else if (type === 'word_cloud') {
+          titleHtml = voted ? 'Thanks for your response' : 'Submit a word or short phrase';
+          if (voted) {
+            const responses = p.responses || [];
+            const counts = {};
+            responses.forEach(r => {
+              const word = r.text.toLowerCase().trim();
+              counts[word] = (counts[word] || 0) + 1;
+            });
+            const max = Math.max(1, ...Object.values(counts));
+            const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+            bodyHtml = `<div class="word-cloud-display">` + sorted.map(([word, count]) => {
+              const size = 13 + Math.round((count / max) * 14);
+              const weight = count === max ? 700 : 500;
+              return `<span class="word-cloud-word" style="font-size: ${size}px; font-weight: ${weight};">${escapeHtml(word)}</span>`;
+            }).join('') + `</div>`;
+          } else {
+            bodyHtml = `
+              <input class="p-text-submit" id="p-text-input-${p.id}" placeholder="Your word(s)..." maxlength="40" />
+              <button class="btn btn-primary btn-block" onclick="submitTextResponse(${p.id})">Submit</button>
             `;
           }
-          return `
-            <button class="p-poll-option" onclick="votePoll(${p.id}, '${o.id}')">
-              <div class="p-poll-option-radio"></div>
-              <div>${escapeHtml(o.text)}</div>
-            </button>
-          `;
-        }).join('');
+
+        } else if (type === 'open_text') {
+          titleHtml = voted ? 'Your response was submitted' : 'Share your thoughts';
+          if (voted) {
+            const responses = p.responses || [];
+            const sorted = [...responses].sort((a,b) => b.at - a.at);
+            bodyHtml = `<div class="open-text-list" style="max-height: 240px;">` + sorted.slice(0, 10).map(r =>
+              `<div class="open-text-item">${escapeHtml(r.text)}</div>`
+            ).join('') + `</div>`;
+            if (sorted.length > 10) bodyHtml += `<div style="font-size: 11px; color: var(--muted); margin-top: 8px; text-align: center;">+ ${sorted.length - 10} more on projector</div>`;
+          } else {
+            bodyHtml = `
+              <textarea class="form-textarea" id="p-text-input-${p.id}" placeholder="Type your response..." maxlength="280"></textarea>
+              <button class="btn btn-primary btn-block" style="margin-top: 10px;" onclick="submitTextResponse(${p.id})">Submit</button>
+            `;
+          }
+
+        } else if (type === 'rating') {
+          const myRating = voted && myChoice.startsWith('rating_') ? parseInt(myChoice.split('_')[1], 10) : 0;
+          titleHtml = voted ? `You rated: ${myRating} ★` : 'Tap to rate (1–5)';
+          const starsHtml = [1,2,3,4,5].map(n => `
+            <svg class="p-rating-star ${myRating >= n ? 'filled' : ''}" fill="currentColor" viewBox="0 0 24 24" onclick="submitRating(${p.id}, ${n})">
+              <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+            </svg>
+          `).join('');
+          bodyHtml = `<div class="p-rating-stars">${starsHtml}</div>`;
+          if (voted) {
+            const responses = p.responses || [];
+            const sum = responses.reduce((s,r) => s + r.value, 0);
+            const avg = responses.length > 0 ? (sum / responses.length).toFixed(1) : '0';
+            bodyHtml += `<div style="font-size: 12px; color: var(--muted); text-align: center; margin-top: 6px;">Group average: <strong style="color: var(--ink);">${avg}</strong> · ${responses.length} rating${responses.length === 1 ? '' : 's'}</div>`;
+            bodyHtml += `<div style="text-align: center; margin-top: 8px;"><button class="btn btn-outline btn-sm" onclick="changeRating(${p.id})">Change my rating</button></div>`;
+          }
+
+        } else if (type === 'ranking') {
+          titleHtml = voted ? 'Your ranking is submitted' : 'Drag to rank (most preferred at top)';
+          let order = myPollRankings[p.id];
+          if (!order) order = p.options.map(o => o.id);
+          if (voted) {
+            // Show locked ranking with current results
+            const sorted = [...p.options].sort((a,b) => b.votes - a.votes);
+            bodyHtml = `<div class="ranking-list">` + sorted.map((o, i) => `
+              <div class="ranking-item" style="cursor: default;">
+                <div class="ranking-rank">${i + 1}</div>
+                <div class="ranking-text">${escapeHtml(o.text)}</div>
+                <div class="ranking-score">${o.votes} pts</div>
+              </div>
+            `).join('') + `</div>`;
+            bodyHtml += `<div style="font-size: 11px; color: var(--muted); margin-top: 8px; text-align: center;">Current group ranking</div>`;
+          } else {
+            bodyHtml = `<div class="ranking-list" id="ranking-list-${p.id}">` + order.map((id, i) => {
+              const o = p.options.find(opt => opt.id === id);
+              if (!o) return '';
+              return `
+                <div class="ranking-item" draggable="true"
+                     ondragstart="rankingDragStart(event, ${i})"
+                     ondragend="rankingDragEnd(event)"
+                     ondragover="rankingDragOver(event, ${i})"
+                     ondragleave="rankingDragLeave(event)"
+                     ondrop="rankingDrop(event, ${i}, ${p.id})">
+                  <div class="ranking-rank">${i + 1}</div>
+                  <div class="ranking-text">${escapeHtml(o.text)}</div>
+                  <div class="ranking-handle">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M9 3h2v2H9V3zm4 0h2v2h-2V3zM9 7h2v2H9V7zm4 0h2v2h-2V7zM9 11h2v2H9v-2zm4 0h2v2h-2v-2zM9 15h2v2H9v-2zm4 0h2v2h-2v-2zM9 19h2v2H9v-2zm4 0h2v2h-2v-2z"/></svg>
+                  </div>
+                </div>
+              `;
+            }).join('') + `</div>`;
+            bodyHtml += `<button class="btn btn-primary btn-block" style="margin-top: 12px;" onclick="confirmRanking(${p.id})">Submit ranking</button>`;
+          }
+        }
+
         return `
           <div class="p-section">
-            <div class="p-section-title">${voted ? 'Live results' : 'Tap to vote'}</div>
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+              <span class="interaction-type-badge">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${def.icon}"/></svg>
+                ${def.label}
+              </span>
+            </div>
+            <div class="p-section-title" style="margin-bottom: 8px;">${titleHtml}</div>
             <div style="font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 14px;">${escapeHtml(p.question)}</div>
-            ${optsHtml}
-            ${voted ? `<div style="font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center;">${total} total votes</div>` : ''}
+            ${bodyHtml}
           </div>
         `;
       }).join('');
@@ -1719,10 +3176,37 @@ function renderParticipant() {
 }
 
 function renderProjector() {
-  // Sync section tabs
-  document.querySelectorAll('.proj-section-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.projTab === state.projectorSection);
-  });
+  // Populate poll picker dropdown
+  const picker = document.getElementById('proj-poll-picker');
+  if (picker) {
+    const livePolls = state.polls.filter(p => p.status === 'live');
+    const currentValue = state.projectorSection === 'poll' && state.activePollId ? String(state.activePollId) : 'questions';
+    picker.innerHTML = '<option value="questions">Show questions</option>' +
+      livePolls.map(p => {
+        const def = getTypeDef(p);
+        return `<option value="${p.id}" ${p.id == state.activePollId ? 'selected' : ''}>${def.label}: ${escapeHtml(p.question.substring(0, 45))}${p.question.length > 45 ? '...' : ''}</option>`;
+      }).join('');
+    picker.value = currentValue;
+  }
+
+  // Update prev/next button state + position indicator
+  const views = getProjectorViews();
+  const curIdx = getCurrentProjectorViewIndex();
+  const prevBtn = document.getElementById('proj-prev');
+  const nextBtn = document.getElementById('proj-next');
+  const position = document.getElementById('proj-position');
+  if (prevBtn) prevBtn.disabled = curIdx <= 0;
+  if (nextBtn) nextBtn.disabled = curIdx < 0 || curIdx >= views.length - 1;
+  if (position) {
+    if (views.length <= 1) {
+      position.textContent = '1 of 1';
+    } else if (curIdx >= 0) {
+      position.textContent = `${curIdx + 1} of ${views.length}`;
+    } else {
+      position.textContent = '—';
+    }
+  }
+
   document.getElementById('proj-questions').style.display = state.projectorSection === 'questions' ? 'block' : 'none';
   document.getElementById('proj-poll').style.display = state.projectorSection === 'poll' ? 'block' : 'none';
 
@@ -1741,32 +3225,120 @@ function renderProjector() {
       `).join('') + `</div>`;
   document.getElementById('proj-questions').innerHTML = qHtml;
 
-  // Active poll on projector
+  // Active interaction on projector
   const activePoll = state.polls.find(p => p.id === state.activePollId && p.status === 'live');
-  const ppHtml = !activePoll
-    ? `<div class="proj-empty">No active poll<br><span style="font-size: 14px; opacity: 0.7;">Launch a poll from the host dashboard</span></div>`
-    : (() => {
-        const total = activePoll.options.reduce((s,o) => s + o.votes, 0) || 1;
-        const opts = activePoll.options.map(o => {
-          const pct = Math.round((o.votes / total) * 100);
-          return `
-            <div class="proj-poll-bar-row">
-              <div class="proj-poll-label">${escapeHtml(o.text)}</div>
-              <div class="proj-poll-bar-bg">
-                <div class="proj-poll-bar-fill" style="width: ${pct}%;"></div>
-              </div>
-              <div class="proj-poll-num">${o.votes} (${pct}%)</div>
-            </div>
-          `;
-        }).join('');
+  let ppHtml;
+  if (!activePoll) {
+    ppHtml = `<div class="proj-empty">No active interaction<br><span style="font-size: 14px; opacity: 0.7;">Launch one from the host dashboard</span></div>`;
+  } else {
+    const type = getType(activePoll);
+
+    if (type === 'multiple_choice') {
+      const total = activePoll.options.reduce((s,o) => s + o.votes, 0) || 1;
+      const opts = activePoll.options.map(o => {
+        const pct = Math.round((o.votes / total) * 100);
         return `
-          <div class="proj-poll">
-            <div class="proj-poll-q">${escapeHtml(activePoll.question)}</div>
-            ${opts}
-            <div style="margin-top: 22px; font-size: 14px; opacity: 0.6;">${total} responses · live</div>
+          <div class="proj-poll-bar-row">
+            <div class="proj-poll-label">${escapeHtml(o.text)}</div>
+            <div class="proj-poll-bar-bg"><div class="proj-poll-bar-fill" style="width: ${pct}%;"></div></div>
+            <div class="proj-poll-num">${o.votes} (${pct}%)</div>
           </div>
         `;
-      })();
+      }).join('');
+      ppHtml = `
+        <div class="proj-poll">
+          <div class="proj-poll-q">${escapeHtml(activePoll.question)}</div>
+          ${opts}
+          <div style="margin-top: 22px; font-size: 14px; opacity: 0.6;">${total} responses · live</div>
+        </div>
+      `;
+
+    } else if (type === 'word_cloud') {
+      const responses = activePoll.responses || [];
+      const counts = {};
+      responses.forEach(r => {
+        const word = r.text.toLowerCase().trim();
+        counts[word] = (counts[word] || 0) + 1;
+      });
+      const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+      const max = Math.max(1, ...Object.values(counts));
+      let cloudHtml;
+      if (sorted.length === 0) {
+        cloudHtml = `<div style="opacity: 0.5; font-size: 18px; padding: 60px 0;">Waiting for responses...</div>`;
+      } else {
+        cloudHtml = sorted.map(([word, count]) => {
+          const size = 22 + Math.round((count / max) * 56);
+          const weight = count === max ? 700 : (count > max / 2 ? 600 : 500);
+          const isTop = count === max;
+          return `<span class="proj-word ${isTop ? '' : 'faint'}" style="font-size: ${size}px; font-weight: ${weight};">${escapeHtml(word)}</span>`;
+        }).join('');
+      }
+      ppHtml = `
+        <div class="proj-poll">
+          <div class="proj-poll-q">${escapeHtml(activePoll.question)}</div>
+          <div class="proj-word-cloud">${cloudHtml}</div>
+          <div style="margin-top: 16px; font-size: 14px; opacity: 0.6; text-align: center;">${responses.length} response${responses.length === 1 ? '' : 's'} · live</div>
+        </div>
+      `;
+
+    } else if (type === 'open_text') {
+      const responses = activePoll.responses || [];
+      const sorted = [...responses].sort((a,b) => b.at - a.at).slice(0, 12);
+      let listHtml;
+      if (sorted.length === 0) {
+        listHtml = `<div style="text-align: center; opacity: 0.5; font-size: 18px; padding: 60px 0;">Waiting for responses...</div>`;
+      } else {
+        listHtml = `<div class="proj-open-text">` + sorted.map(r =>
+          `<div class="proj-open-item">${escapeHtml(r.text)}</div>`
+        ).join('') + `</div>`;
+      }
+      ppHtml = `
+        <div class="proj-poll">
+          <div class="proj-poll-q">${escapeHtml(activePoll.question)}</div>
+          ${listHtml}
+          <div style="margin-top: 22px; font-size: 14px; opacity: 0.6; text-align: center;">${responses.length} response${responses.length === 1 ? '' : 's'} · showing latest 12</div>
+        </div>
+      `;
+
+    } else if (type === 'rating') {
+      const responses = activePoll.responses || [];
+      const total = responses.length;
+      const sum = responses.reduce((s,r) => s + r.value, 0);
+      const avg = total > 0 ? (sum / total).toFixed(1) : '—';
+      const filled = total > 0 ? Math.round(parseFloat(avg)) : 0;
+      const stars = [1,2,3,4,5].map(n =>
+        `<svg class="proj-rating-star ${n <= filled ? '' : 'empty'}" fill="currentColor" viewBox="0 0 24 24"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>`
+      ).join('');
+      ppHtml = `
+        <div class="proj-poll">
+          <div class="proj-poll-q">${escapeHtml(activePoll.question)}</div>
+          <div class="proj-rating">
+            <div class="proj-rating-num">${avg}</div>
+            <div class="proj-rating-stars">${stars}</div>
+            <div class="proj-rating-meta">${total} rating${total === 1 ? '' : 's'}</div>
+          </div>
+        </div>
+      `;
+
+    } else if (type === 'ranking') {
+      const total = activePoll.options.reduce((s,o) => s + o.votes, 0);
+      const sorted = [...activePoll.options].sort((a,b) => b.votes - a.votes);
+      const items = sorted.map((o, i) => `
+        <div class="proj-ranking-item">
+          <div class="proj-ranking-rank">${i + 1}</div>
+          <div class="proj-ranking-text">${escapeHtml(o.text)}</div>
+          <div class="proj-ranking-score">${o.votes} pts</div>
+        </div>
+      `).join('');
+      ppHtml = `
+        <div class="proj-poll">
+          <div class="proj-poll-q">${escapeHtml(activePoll.question)}</div>
+          ${items || `<div style="text-align: center; opacity: 0.5; padding: 40px 0;">Waiting for rankings...</div>`}
+          <div style="margin-top: 22px; font-size: 14px; opacity: 0.6; text-align: center;">${total} points cast · live</div>
+        </div>
+      `;
+    }
+  }
   document.getElementById('proj-poll').innerHTML = ppHtml;
 }
 
@@ -1776,18 +3348,31 @@ function drawQR() {
   const grid = document.getElementById('qr-canvas');
   if (!grid) return;
   const url = (state.joinUrl || 'https://quizt.app/' + state.sessionCode);
-  document.getElementById('qr-url-display').textContent = url;
+  const urlDisplay = document.getElementById('qr-url-display');
+  if (urlDisplay) urlDisplay.textContent = url;
   const input = document.getElementById('qr-url-input');
   if (input && document.activeElement !== input) input.value = url;
   grid.innerHTML = '';
-  qrInstance = new QRCode(grid, {
-    text: url,
-    width: 160,
-    height: 160,
-    colorDark: '#1a1a2e',
-    colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.M
-  });
+
+  // Tolerant of missing library — show a fallback placeholder instead of crashing
+  if (typeof QRCode === 'undefined') {
+    grid.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--muted);font-size:11px;text-align:center;padding:10px;">QR library<br>not loaded<br>(check internet)</div>';
+    return;
+  }
+
+  try {
+    qrInstance = new QRCode(grid, {
+      text: url,
+      width: 160,
+      height: 160,
+      colorDark: '#1a1a2e',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } catch (e) {
+    grid.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--muted);font-size:11px;">QR error</div>';
+    console.warn('QR generation failed:', e);
+  }
 }
 
 // Live update QR when URL is edited
@@ -1812,8 +3397,24 @@ window.addEventListener('storage', (e) => {
 });
 
 // ── Initial render ──
-drawQR();
-render();
+try {
+  loadTheme();
+} catch (e) { console.warn('Theme init failed:', e); }
+
+try {
+  drawQR();
+} catch (e) { console.warn('QR init failed:', e); }
+
+try {
+  renderTypePicker();
+  selectInteractionType('multiple_choice');
+} catch (e) { console.warn('Type picker init failed:', e); }
+
+try {
+  render();
+} catch (e) {
+  console.error('Initial render failed:', e);
+}
 </script>
 </body>
 </html>
