@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --navy:   #1e2d78;
@@ -1425,6 +1426,77 @@
   .demo-notice strong { color: var(--pending-fg); }
 
   /* Reset session button */
+  /* ── Session setup screen ── */
+  .setup-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    padding: 20px;
+  }
+  .setup-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 8px 40px rgba(30,45,120,0.12);
+  }
+  .setup-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+  .setup-logo-mark {
+    width: 48px; height: 48px;
+    background: var(--navy);
+    color: white;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 800; letter-spacing: -0.5px;
+  }
+  .setup-logo-name { font-size: 22px; font-weight: 700; color: var(--accent-strong); }
+  .setup-logo-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .setup-title { font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+  .setup-sub { font-size: 14px; color: var(--muted); margin-bottom: 28px; line-height: 1.5; }
+  .setup-field { margin-bottom: 16px; }
+  .setup-code-preview {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .setup-code-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+  .setup-code-value { font-size: 22px; font-weight: 700; letter-spacing: 3px; color: var(--accent-strong); font-family: monospace; }
+  .setup-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  .setup-join-link { text-align: center; font-size: 13px; color: var(--muted); margin-top: 16px; }
+  .setup-join-link a { color: var(--cyan); text-decoration: none; font-weight: 600; cursor: pointer; }
+
+  /* ── Connection status banner ── */
+  .conn-banner {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: 10px 20px;
+    text-align: center; font-size: 13px; font-weight: 500;
+    z-index: 9999;
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+  }
+  .conn-banner.show { transform: translateY(0); }
+  .conn-banner.connecting { background: var(--amber); color: #3a2800; }
+  .conn-banner.reconnected { background: var(--green); color: white; }
+  .conn-banner.error { background: var(--red); color: white; }
+
+  /* ── Sync dot in header ── */
+  .sync-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    display: inline-block; margin-right: 4px;
+    animation: syncPulse 2s infinite;
+  }
+  .sync-dot.offline { background: var(--red); animation: none; }
+  .sync-dot.syncing { background: var(--amber); animation: none; }
+  @keyframes syncPulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
   .reset-link {
     background: none;
     border: none;
@@ -1621,14 +1693,69 @@
 </div>
 
 <!-- Header -->
+<!-- Connection status banner -->
+<div class="conn-banner" id="conn-banner"></div>
+
+<!-- Session setup screen (shown before a session is active) -->
+<div id="setup-screen" class="setup-screen">
+  <div class="setup-card">
+    <div class="setup-logo">
+      <div class="setup-logo-mark">QT</div>
+      <div>
+        <div class="setup-logo-name">Quiz(T)</div>
+        <div class="setup-logo-sub">Live Q&A for your meeting</div>
+      </div>
+    </div>
+
+    <div id="setup-new">
+      <div class="setup-title">Start a new session</div>
+      <div class="setup-sub">Enter your meeting title. A session code will be generated automatically.</div>
+      <div class="setup-field">
+        <label class="form-label">Meeting title</label>
+        <input class="form-input" id="setup-title-input" placeholder="e.g. Q3 2026 All-Hands" maxlength="80" />
+      </div>
+      <div class="setup-code-preview" id="setup-code-preview" style="display:none;">
+        <div>
+          <div class="setup-code-label">Session code</div>
+          <div class="setup-code-value" id="setup-code-display">—</div>
+        </div>
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--green)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <button class="btn btn-primary btn-block" id="setup-start-btn" onclick="startNewSession()">Create session</button>
+      <hr class="setup-divider">
+      <div class="setup-join-link">Rejoining an existing session? <a onclick="showRejoinForm()">Enter session code</a></div>
+    </div>
+
+    <div id="setup-rejoin" style="display:none;">
+      <div class="setup-title">Rejoin a session</div>
+      <div class="setup-sub">Enter the session code to reconnect as host.</div>
+      <div class="setup-field">
+        <label class="form-label">Session code</label>
+        <input class="form-input" id="rejoin-code-input" placeholder="e.g. QT-ABC123" style="text-transform:uppercase; letter-spacing: 2px;" maxlength="12" />
+      </div>
+      <button class="btn btn-primary btn-block" onclick="rejoinSession()">Rejoin as host</button>
+      <hr class="setup-divider">
+      <div class="setup-join-link"><a onclick="showNewForm()">← Back to new session</a></div>
+    </div>
+
+    <div id="setup-loading" style="display:none; text-align:center; padding: 20px 0;">
+      <div style="font-size: 14px; color: var(--muted);">Connecting to Supabase...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Main app (hidden until session is active) -->
+<div id="app" style="display:none;">
+
 <div class="header">
   <div class="header-brand">
     <div class="header-mark">QT</div>
-    <div class="header-title">Quiz(T) <span style="font-weight: 400; opacity: 0.6; font-size: 13px; margin-left: 6px;">live Q&A and polls</span></div>
+    <div class="header-title">Quiz(T) <span style="font-weight: 400; opacity: 0.6; font-size: 13px; margin-left: 6px;" id="header-session-title">live Q&A</span></div>
   </div>
   <div class="header-divider"></div>
   <div class="header-session">
-    Session: <strong id="header-session-code">QT-Q3-2026</strong>
+    <span class="sync-dot" id="sync-dot"></span>
+    Session: <strong id="header-session-code">—</strong>
   </div>
   <div class="header-spacer"></div>
   <div class="role-switcher">
@@ -1923,12 +2050,24 @@
   </button>
 </div>
 
+</div><!-- end #app -->
+
 <script>
 /* ═══════════════════════════════════════════════════════════════
-   Quiz(T) — Single-file demo with localStorage persistence
-   When ready for production: swap the storage layer below for
-   Supabase calls. Everything else stays the same.
+   Quiz(T) v4 — Supabase real-time backend
+   Session data lives in Supabase; localStorage only used for
+   voter token, theme preference, and last session code.
    ═══════════════════════════════════════════════════════════════ */
+
+// ── Supabase config ──
+const SUPABASE_URL = 'https://iyltrhsmupkzifxgvvzr.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5bHRyaHNtdXBremlmeGd2dnpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NDY3NDUsImV4cCI6MjA5MjMyMjc0NX0.kYKkw0NZlYw4YppwxwawIqHCf67RiRuYj4ICrZcNwNE';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// localStorage keys (only non-sensitive client-side state)
+const VOTER_TOKEN_KEY = 'quizt_voter_token';
+const THEME_KEY = 'quizt_theme';
+const LAST_SESSION_KEY = 'quizt_last_session';
 
 // ── Interaction types ──
 const INTERACTION_TYPES = {
@@ -1969,110 +2108,392 @@ const INTERACTION_TYPES = {
 function getType(p) { return p.type || 'multiple_choice'; }
 function getTypeDef(p) { return INTERACTION_TYPES[getType(p)] || INTERACTION_TYPES.multiple_choice; }
 
-// ── Storage layer (swap this block for Supabase later) ──
-const STORAGE_KEY = 'quizt_session_v1';
-const VOTES_KEY = 'quizt_votes_v1';
-const POLL_VOTES_KEY = 'quizt_pollvotes_v1';
+// ── Storage layer (Supabase) ──
+// localStorage only for: voter token, theme, last session code
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      refreshStaleTimestamps(parsed);
-      return parsed;
-    }
-  } catch(e) {}
-  return getDefaultState();
+// Get or create a stable voter token for this device
+function getVoterToken() {
+  let t = localStorage.getItem(VOTER_TOKEN_KEY);
+  if (!t) {
+    t = 'v_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem(VOTER_TOKEN_KEY, t);
+  }
+  return t;
 }
+const myVoterToken = getVoterToken();
 
-// If seed data is older than 2 hours, bump timestamps so the demo
-// always shows fresh "just now / 5m ago" labels rather than "18h ago".
-// Only affects the original seed questions and poll.
-function refreshStaleTimestamps(s) {
-  const now = Date.now();
-  const twoHours = 2 * 60 * 60 * 1000;
-  const SEED_IDS = new Set([1, 2, 3]);
-  const offsets = { 1: 600000, 2: 480000, 3: 300000 };
-  let touched = false;
-  (s.questions || []).forEach(q => {
-    if (SEED_IDS.has(q.id) && q.author && (now - q.createdAt) > twoHours) {
-      q.createdAt = now - (offsets[q.id] || 300000);
-      touched = true;
-    }
-  });
-  (s.polls || []).forEach(p => {
-    if (p.id === 1 && (now - p.createdAt) > twoHours) {
-      p.createdAt = now - 200000;
-      touched = true;
-    }
-  });
-  return touched;
-}
+// ── Session state ──
+// State is now derived from Supabase data, not localStorage.
+// We keep a local in-memory copy that gets updated by real-time subscriptions.
+let currentSessionId = null;  // e.g. "QT-ABC123"
+let currentSessionTitle = '';
+let state = getEmptyState();
+let myVotes = {};         // questionId → true (voted)
+let myPollVotes = {};     // interactionId → value string
+let myPollRankings = {};  // interactionId → ordered option ids
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  // Trigger storage event in other tabs
-  localStorage.setItem(STORAGE_KEY + '_ping', Date.now());
-}
-
-function getDefaultState() {
+function getEmptyState() {
   return {
-    sessionCode: 'QT-Q3-2026',
-    sessionTitle: 'Q3 2026 All-Hands',
-    settings: {
-      moderation: true,
-      anonymous: true
-    },
-    questions: [
-      { id: 1, text: 'When will the budget allocation for next fiscal year be announced?', author: 'Faes', votes: 8, status: 'live', createdAt: Date.now() - 600000 },
-      { id: 2, text: 'Will the new dashboard integrate with our existing reporting tools?', author: 'Anonymous', votes: 12, status: 'live', createdAt: Date.now() - 480000 },
-      { id: 3, text: 'Can we get more clarity on resource allocation across the team?', author: 'Aeng', votes: 5, status: 'live', createdAt: Date.now() - 300000 }
-    ],
-    polls: [
-      {
-        id: 1,
-        type: 'multiple_choice',
-        question: 'Which R&D area should be our top priority next quarter?',
-        options: [
-          { id: 'a', text: 'Renewable energy storage', votes: 28 },
-          { id: 'b', text: 'Carbon capture technology', votes: 19 },
-          { id: 'c', text: 'Smart grid integration', votes: 15 },
-          { id: 'd', text: 'Hydrogen production', votes: 22 }
-        ],
-        responses: [],
-        status: 'live',
-        createdAt: Date.now() - 200000
-      }
-    ],
-    nextQuestionId: 4,
-    nextPollId: 2,
-    activePollId: 1,
-    projectorSection: 'questions'
+    sessionCode: '',
+    sessionTitle: '',
+    questions: [],
+    polls: [],
+    nextQuestionId: 1,
+    nextPollId: 1,
+    activePollId: null,
+    projectorSection: 'questions',
+    settings: { moderation: true, anonymous: true },
+    joinUrl: ''
   };
 }
 
-function loadVotes() {
-  try { return JSON.parse(localStorage.getItem(VOTES_KEY) || '[]'); }
-  catch(e) { return []; }
+// ── Supabase helpers ──
+function setSyncDot(status) {
+  const dot = document.getElementById('sync-dot');
+  if (!dot) return;
+  dot.className = 'sync-dot ' + (status || '');
 }
-function saveVotes(v) { localStorage.setItem(VOTES_KEY, JSON.stringify(v)); }
 
-function loadPollVotes() {
-  try { return JSON.parse(localStorage.getItem(POLL_VOTES_KEY) || '{}'); }
-  catch(e) { return {}; }
+function showConnBanner(msg, type, autohide) {
+  const b = document.getElementById('conn-banner');
+  if (!b) return;
+  b.textContent = msg;
+  b.className = 'conn-banner show ' + type;
+  if (autohide) setTimeout(() => b.className = 'conn-banner', 3000);
 }
-function savePollVotes(v) { localStorage.setItem(POLL_VOTES_KEY, JSON.stringify(v)); }
+
+// ── Session setup functions ──
+function generateSessionCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'QT-';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+document.getElementById('setup-title-input')?.addEventListener('input', function() {
+  const hasTitle = this.value.trim().length > 0;
+  const preview = document.getElementById('setup-code-preview');
+  if (!preview._code) preview._code = generateSessionCode();
+  document.getElementById('setup-code-display').textContent = preview._code;
+  preview.style.display = hasTitle ? 'flex' : 'none';
+});
+
+function showRejoinForm() {
+  document.getElementById('setup-new').style.display = 'none';
+  document.getElementById('setup-rejoin').style.display = 'block';
+}
+function showNewForm() {
+  document.getElementById('setup-new').style.display = 'block';
+  document.getElementById('setup-rejoin').style.display = 'none';
+}
+
+async function startNewSession() {
+  const titleInput = document.getElementById('setup-title-input');
+  const title = titleInput.value.trim();
+  if (!title) { titleInput.focus(); return; }
+  const preview = document.getElementById('setup-code-preview');
+  const code = preview._code || generateSessionCode();
+  document.getElementById('setup-new').style.display = 'none';
+  document.getElementById('setup-loading').style.display = 'block';
+  try {
+    const { error } = await sb.from('sessions').insert({ id: code, title });
+    if (error) throw error;
+    localStorage.setItem(LAST_SESSION_KEY, code);
+    await loadSession(code, title, true);
+  } catch(e) {
+    document.getElementById('setup-new').style.display = 'block';
+    document.getElementById('setup-loading').style.display = 'none';
+    alert('Could not create session: ' + e.message);
+  }
+}
+
+async function rejoinSession() {
+  const code = document.getElementById('rejoin-code-input').value.trim().toUpperCase();
+  if (!code) return;
+  document.getElementById('setup-rejoin').style.display = 'none';
+  document.getElementById('setup-loading').style.display = 'block';
+  try {
+    const { data, error } = await sb.from('sessions').select('*').eq('id', code).single();
+    if (error || !data) throw new Error('Session not found. Check the code and try again.');
+    localStorage.setItem(LAST_SESSION_KEY, code);
+    await loadSession(code, data.title, true);
+  } catch(e) {
+    document.getElementById('setup-rejoin').style.display = 'block';
+    document.getElementById('setup-loading').style.display = 'none';
+    alert(e.message);
+  }
+}
+
+// ── Load session and start real-time ──
+async function loadSession(sessionId, sessionTitle, isHost) {
+  currentSessionId = sessionId;
+  currentSessionTitle = sessionTitle;
+  state = getEmptyState();
+  state.sessionCode = sessionId;
+  state.sessionTitle = sessionTitle;
+  state.joinUrl = window.location.origin + window.location.pathname + '?session=' + sessionId;
+
+  // Load all existing data from Supabase
+  await refreshAllData();
+
+  // Show app, hide setup
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+
+  // Update header
+  document.getElementById('header-session-code').textContent = sessionId;
+  document.getElementById('header-session-title').textContent = sessionTitle;
+
+  // Update projector footer
+  const footer = document.querySelector('.proj-footer');
+  if (footer) footer.innerHTML = `Powered by Quiz(T) · Join at <span>${state.joinUrl}</span>`;
+
+  // Update participant join info
+  const pCode = document.getElementById('p-session-code');
+  if (pCode) pCode.textContent = sessionId;
+
+  // Subscribe to real-time changes
+  subscribeRealtime(sessionId);
+
+  // Render
+  try { loadTheme(); } catch(e) {}
+  try { drawQR(); } catch(e) {}
+  try { renderTypePicker(); selectInteractionType('multiple_choice'); } catch(e) {}
+  render();
+
+  setSyncDot('');
+  showConnBanner('Connected — ' + sessionId, 'reconnected', true);
+}
+
+async function refreshAllData() {
+  setSyncDot('syncing');
+  try {
+    const sid = currentSessionId;
+    const [{ data: questions }, { data: interactions }] = await Promise.all([
+      sb.from('questions').select('*').eq('session_id', sid).order('created_at'),
+      sb.from('interactions').select('*').eq('session_id', sid).order('created_at')
+    ]);
+
+    state.questions = (questions || []).map(dbToQuestion);
+    state.polls = (interactions || []).map(dbToInteraction);
+
+    // Load my votes for this session
+    const { data: votes } = await sb.from('votes').select('*')
+      .eq('session_id', sid)
+      .eq('voter_token', myVoterToken);
+    myVotes = {};
+    myPollVotes = {};
+    (votes || []).forEach(v => {
+      if (v.question_id) myVotes[v.question_id] = true;
+      if (v.interaction_id) myPollVotes[v.interaction_id] = v.value;
+    });
+
+    // Figure out active poll
+    const activeInteraction = state.polls.find(p => p.activeOnProjector && p.status === 'live');
+    if (activeInteraction) {
+      state.activePollId = activeInteraction.id;
+      state.projectorSection = 'poll';
+    }
+
+    setSyncDot('');
+  } catch(e) {
+    setSyncDot('offline');
+    console.error('refreshAllData error:', e);
+  }
+}
+
+// ── Data converters (DB → state format, state format → DB) ──
+function dbToQuestion(row) {
+  return {
+    id: row.id,
+    text: row.text,
+    author: row.author,
+    votes: row.votes,
+    status: row.status,
+    createdAt: new Date(row.created_at).getTime()
+  };
+}
+function dbToInteraction(row) {
+  return {
+    id: row.id,
+    type: row.type,
+    question: row.question,
+    options: row.options || [],
+    responses: row.responses || [],
+    status: row.status,
+    activeOnProjector: row.active_on_projector,
+    createdAt: new Date(row.created_at).getTime()
+  };
+}
+
+// ── Supabase write helpers ──
+async function dbSubmitQuestion(text, author, moderated) {
+  const { data, error } = await sb.from('questions').insert({
+    session_id: currentSessionId,
+    text, author,
+    status: moderated ? 'pending' : 'live'
+  }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+async function dbUpdateQuestion(id, updates) {
+  const { error } = await sb.from('questions').update(updates).eq('id', id);
+  if (error) throw error;
+}
+
+async function dbDeleteQuestion(id) {
+  const { error } = await sb.from('questions').delete().eq('id', id);
+  if (error) throw error;
+}
+
+async function dbVoteQuestion(questionId, delta) {
+  // Upsert vote record, update vote count
+  const { error: ve } = await sb.from('votes').insert({
+    session_id: currentSessionId,
+    question_id: questionId,
+    voter_token: myVoterToken,
+    value: 'upvote'
+  });
+  if (ve && !ve.message.includes('duplicate')) throw ve;
+  const q = state.questions.find(x => x.id === questionId);
+  const newVotes = Math.max(0, (q?.votes || 0) + delta);
+  const { error } = await sb.from('questions').update({ votes: newVotes }).eq('id', questionId);
+  if (error) throw error;
+}
+
+async function dbCreateInteraction(interaction) {
+  const { data, error } = await sb.from('interactions').insert({
+    session_id: currentSessionId,
+    type: interaction.type,
+    question: interaction.question,
+    options: interaction.options,
+    responses: interaction.responses,
+    status: interaction.status,
+    active_on_projector: false
+  }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+async function dbUpdateInteraction(id, updates) {
+  const dbUpdates = {};
+  if (updates.status !== undefined) dbUpdates.status = updates.status;
+  if (updates.options !== undefined) dbUpdates.options = updates.options;
+  if (updates.responses !== undefined) dbUpdates.responses = updates.responses;
+  if (updates.activeOnProjector !== undefined) dbUpdates.active_on_projector = updates.activeOnProjector;
+  const { error } = await sb.from('interactions').update(dbUpdates).eq('id', id);
+  if (error) throw error;
+}
+
+async function dbDeleteInteraction(id) {
+  const { error } = await sb.from('interactions').delete().eq('id', id);
+  if (error) throw error;
+}
+
+async function dbCastInteractionVote(interactionId, value) {
+  // Upsert vote
+  const { error } = await sb.from('votes').upsert({
+    session_id: currentSessionId,
+    interaction_id: interactionId,
+    voter_token: myVoterToken,
+    value: String(value)
+  }, { onConflict: 'session_id,interaction_id,voter_token' });
+  if (error) throw error;
+}
+
+// ── Real-time subscriptions ──
+let realtimeChannel = null;
+function subscribeRealtime(sessionId) {
+  if (realtimeChannel) realtimeChannel.unsubscribe();
+  realtimeChannel = sb.channel('session:' + sessionId)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: 'session_id=eq.' + sessionId },
+      (payload) => handleQuestionChange(payload))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'interactions', filter: 'session_id=eq.' + sessionId },
+      (payload) => handleInteractionChange(payload))
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        setSyncDot('');
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        setSyncDot('offline');
+        showConnBanner('Connection lost — trying to reconnect...', 'connecting', false);
+      }
+    });
+}
+
+function handleQuestionChange(payload) {
+  const { eventType, new: row, old } = payload;
+  if (eventType === 'INSERT') {
+    if (!state.questions.find(q => q.id === row.id)) {
+      state.questions.push(dbToQuestion(row));
+    }
+  } else if (eventType === 'UPDATE') {
+    const idx = state.questions.findIndex(q => q.id === row.id);
+    if (idx >= 0) state.questions[idx] = dbToQuestion(row);
+  } else if (eventType === 'DELETE') {
+    state.questions = state.questions.filter(q => q.id !== old.id);
+  }
+  render();
+}
+
+function handleInteractionChange(payload) {
+  const { eventType, new: row, old } = payload;
+  if (eventType === 'INSERT') {
+    if (!state.polls.find(p => p.id === row.id)) {
+      state.polls.push(dbToInteraction(row));
+    }
+  } else if (eventType === 'UPDATE') {
+    const idx = state.polls.findIndex(p => p.id === row.id);
+    if (idx >= 0) {
+      state.polls[idx] = dbToInteraction(row);
+      // Sync active poll state
+      if (row.active_on_projector) {
+        state.activePollId = row.id;
+        state.projectorSection = 'poll';
+      }
+    }
+  } else if (eventType === 'DELETE') {
+    state.polls = state.polls.filter(p => p.id !== old.id);
+    if (state.activePollId === old.id) { state.activePollId = null; state.projectorSection = 'questions'; }
+  }
+  render();
+}
+
+// ── Participant auto-join from URL ──
+async function checkUrlSession() {
+  const params = new URLSearchParams(window.location.search);
+  const sessionParam = params.get('session');
+  if (sessionParam) {
+    // Participant joining via URL
+    document.getElementById('setup-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('setup-loading').style.display = 'block';
+    try {
+      const { data, error } = await sb.from('sessions').select('*').eq('id', sessionParam.toUpperCase()).single();
+      if (error || !data) throw new Error('Session not found');
+      await loadSession(data.id, data.title, false);
+      // Switch to participant view
+      document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      const pBtn = document.querySelector('[data-view="participant"]');
+      const pView = document.getElementById('view-participant');
+      if (pBtn) pBtn.classList.add('active');
+      if (pView) pView.classList.add('active');
+    } catch(e) {
+      document.getElementById('setup-screen').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+      alert('Could not join session: ' + e.message);
+    }
+    return true;
+  }
+  return false;
+}
+
+// ── Stub saveState (no-op, Supabase is source of truth) ──
+function saveState() { /* data lives in Supabase now */ }
 
 // ── State ──
-let state = loadState();
-let myVotes = loadVotes();
-let myPollVotes = loadPollVotes();
-let myPollRankings = (() => {
-  try { return JSON.parse(localStorage.getItem('quizt_rankings_v1') || '{}'); }
-  catch(e) { return {}; }
-})();
-
+let myVotesLoaded = false;
 // ── Utility ──
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2144,7 +2565,7 @@ document.getElementById('sort-questions').addEventListener('change', render);
 
 // ── Theme (dark mode) ──
 function loadTheme() {
-  const saved = localStorage.getItem('quizt_theme') || 'light';
+  const saved = localStorage.getItem(THEME_KEY) || 'light';
   applyTheme(saved);
 }
 function applyTheme(theme) {
@@ -2159,7 +2580,7 @@ function applyTheme(theme) {
 function toggleTheme() {
   const cur = document.documentElement.getAttribute('data-theme') || 'light';
   const next = cur === 'dark' ? 'light' : 'dark';
-  localStorage.setItem('quizt_theme', next);
+  localStorage.setItem(THEME_KEY, next);
   applyTheme(next);
 }
 
@@ -2389,21 +2810,33 @@ function toggleSetting(key, btn) {
 }
 
 // ── Question actions (host) ──
-function approveQuestion(id) {
-  const q = state.questions.find(x => x.id === id);
-  if (q) { q.status = 'live'; saveState(); render(); }
+async function approveQuestion(id) {
+  try {
+    await dbUpdateQuestion(id, { status: 'live' });
+    const q = state.questions.find(x => x.id === id);
+    if (q) { q.status = 'live'; render(); }
+  } catch(e) { showToast('Error: ' + e.message); }
 }
-function rejectQuestion(id) {
-  state.questions = state.questions.filter(x => x.id !== id);
-  saveState(); render();
+async function rejectQuestion(id) {
+  try {
+    await dbDeleteQuestion(id);
+    state.questions = state.questions.filter(x => x.id !== id);
+    render();
+  } catch(e) { showToast('Error: ' + e.message); }
 }
-function archiveQuestion(id) {
-  const q = state.questions.find(x => x.id === id);
-  if (q) { q.status = 'archived'; saveState(); render(); }
+async function archiveQuestion(id) {
+  try {
+    await dbUpdateQuestion(id, { status: 'archived' });
+    const q = state.questions.find(x => x.id === id);
+    if (q) { q.status = 'archived'; render(); }
+  } catch(e) { showToast('Error: ' + e.message); }
 }
-function unarchiveQuestion(id) {
-  const q = state.questions.find(x => x.id === id);
-  if (q) { q.status = 'live'; saveState(); render(); }
+async function unarchiveQuestion(id) {
+  try {
+    await dbUpdateQuestion(id, { status: 'live' });
+    const q = state.questions.find(x => x.id === id);
+    if (q) { q.status = 'live'; render(); }
+  } catch(e) { showToast('Error: ' + e.message); }
 }
 function startEditQuestion(id) {
   const q = state.questions.find(x => x.id === id);
@@ -2411,53 +2844,72 @@ function startEditQuestion(id) {
   q._editing = true;
   render();
 }
-function saveEditQuestion(id) {
+async function saveEditQuestion(id) {
   const q = state.questions.find(x => x.id === id);
   if (!q) return;
   const ta = document.getElementById('edit-q-' + id);
   if (ta && ta.value.trim()) {
-    q.text = ta.value.trim();
+    const newText = ta.value.trim();
+    try {
+      await dbUpdateQuestion(id, { text: newText });
+      q.text = newText;
+    } catch(e) { showToast('Error saving: ' + e.message); }
   }
   q._editing = false;
-  saveState(); render();
+  render();
 }
 
 // ── Question submission (participant) ──
-function submitQuestion(btn) {
+async function submitQuestion(btn) {
   const text = document.getElementById('p-question-text').value.trim();
   const name = document.getElementById('p-name').value.trim();
   if (!text) { showToast('Please type a question'); return; }
   if (!name && !state.settings.anonymous) { showToast('Name required'); return; }
-  state.questions.push({
-    id: state.nextQuestionId++,
-    text,
-    author: name || 'Anonymous',
-    votes: 0,
-    status: state.settings.moderation ? 'pending' : 'live',
-    createdAt: Date.now()
-  });
-  document.getElementById('p-question-text').value = '';
-  saveState();
-  render();
-  showToast(state.settings.moderation ? 'Submitted — waiting for approval' : 'Submitted — now live!', true);
+  if (!currentSessionId) { showToast('No active session'); return; }
   flashSubmitSuccess(btn);
+  try {
+    await dbSubmitQuestion(text, name || 'Anonymous', state.settings.moderation);
+    document.getElementById('p-question-text').value = '';
+    showToast(state.settings.moderation ? 'Submitted — waiting for approval' : 'Submitted — now live!', true);
+  } catch(e) {
+    showToast('Could not submit: ' + e.message);
+  }
 }
 
 // ── Voting (participant) ──
-function toggleVote(id) {
+async function toggleVote(id) {
   const q = state.questions.find(x => x.id === id);
-  if (!q) return;
-  const idx = myVotes.indexOf(id);
-  if (idx >= 0) {
-    myVotes.splice(idx, 1);
-    q.votes = Math.max(0, q.votes - 1);
-  } else {
-    myVotes.push(id);
-    q.votes++;
-  }
-  saveVotes(myVotes);
-  saveState();
+  if (!q || q.status !== 'live') return;
+  const alreadyVoted = myVotes[id];
+  const delta = alreadyVoted ? -1 : 1;
+  // Optimistic update
+  myVotes[id] = !alreadyVoted;
+  q.votes = Math.max(0, q.votes + delta);
   render();
+  try {
+    if (alreadyVoted) {
+      // Remove vote
+      await sb.from('votes').delete()
+        .eq('session_id', currentSessionId)
+        .eq('question_id', id)
+        .eq('voter_token', myVoterToken);
+      await dbUpdateQuestion(id, { votes: q.votes });
+    } else {
+      await sb.from('votes').insert({
+        session_id: currentSessionId,
+        question_id: id,
+        voter_token: myVoterToken,
+        value: 'upvote'
+      });
+      await dbUpdateQuestion(id, { votes: q.votes });
+    }
+  } catch(e) {
+    // Revert optimistic update on failure
+    myVotes[id] = alreadyVoted;
+    q.votes = Math.max(0, q.votes - delta);
+    render();
+    showToast('Vote failed — try again');
+  }
 }
 
 // ── Polls ──
@@ -2504,18 +2956,17 @@ function removePollOption(btn) {
   if (opts.length > 2) btn.parentElement.remove();
   else showToast('At least 2 options required');
 }
-function createPoll(launch) {
+async function createPoll(launch) {
   const q = document.getElementById('new-poll-q').value.trim();
   if (!q) { showToast('Please enter a question'); return; }
+  if (!currentSessionId) { showToast('No active session'); return; }
   const def = INTERACTION_TYPES[selectedInteractionType];
   const interaction = {
-    id: state.nextPollId++,
     type: selectedInteractionType,
     question: q,
     options: [],
     responses: [],
-    status: launch ? 'live' : 'draft',
-    createdAt: Date.now()
+    status: launch ? 'live' : 'draft'
   };
   if (def.needsOptions) {
     const optInputs = document.querySelectorAll('#new-poll-options .poll-option-input input');
@@ -2524,29 +2975,49 @@ function createPoll(launch) {
       if (v) interaction.options.push({ id: String.fromCharCode(97 + i), text: v, votes: 0 });
     });
     if (interaction.options.length < (def.minOptions || 2)) {
-      showToast(`Need at least ${def.minOptions || 2} options`);
-      return;
+      showToast(`Need at least ${def.minOptions || 2} options`); return;
     }
   }
-  state.polls.push(interaction);
-  if (launch) state.activePollId = interaction.id;
-  document.getElementById('new-poll-q').value = '';
-  document.getElementById('new-poll-options').innerHTML = `
-    <div class="poll-option-input"><input class="form-input" placeholder="Option 1" /><button class="icon-btn" onclick="removePollOption(this)">×</button></div>
-    <div class="poll-option-input"><input class="form-input" placeholder="Option 2" /><button class="icon-btn" onclick="removePollOption(this)">×</button></div>
-  `;
-  saveState();
-  render();
-  showToast(launch ? `${def.label} launched` : `${def.label} saved as draft`, true);
+  try {
+    const row = await dbCreateInteraction(interaction);
+    const newInteraction = dbToInteraction(row);
+    state.polls.push(newInteraction);
+    if (launch) {
+      state.activePollId = newInteraction.id;
+      // Mark active on projector
+      await dbUpdateInteraction(newInteraction.id, { activeOnProjector: true });
+    }
+    document.getElementById('new-poll-q').value = '';
+    document.getElementById('new-poll-options').innerHTML = `
+      <div class="poll-option-input"><input class="form-input" placeholder="Option 1" /><button class="icon-btn" onclick="removePollOption(this)">×</button></div>
+      <div class="poll-option-input"><input class="form-input" placeholder="Option 2" /><button class="icon-btn" onclick="removePollOption(this)">×</button></div>
+    `;
+    render();
+    showToast(launch ? `${def.label} launched` : `${def.label} saved as draft`, true);
+  } catch(e) { showToast('Error: ' + e.message); }
 }
-function launchPoll(id) {
-  const p = state.polls.find(x => x.id === id);
-  if (p) { p.status = 'live'; state.activePollId = id; saveState(); render(); }
+
+async function launchPoll(id) {
+  try {
+    await dbUpdateInteraction(id, { status: 'live', activeOnProjector: true });
+    const p = state.polls.find(x => x.id === id);
+    if (p) { p.status = 'live'; p.activeOnProjector = true; }
+    state.activePollId = id;
+    state.projectorSection = 'poll';
+    render();
+  } catch(e) { showToast('Error: ' + e.message); }
 }
-function closePoll(id) {
-  const p = state.polls.find(x => x.id === id);
-  if (p) { p.status = 'closed'; if (state.activePollId === id) state.activePollId = null; saveState(); render(); }
+
+async function closePoll(id) {
+  try {
+    await dbUpdateInteraction(id, { status: 'closed', activeOnProjector: false });
+    const p = state.polls.find(x => x.id === id);
+    if (p) { p.status = 'closed'; p.activeOnProjector = false; }
+    if (state.activePollId === id) { state.activePollId = null; state.projectorSection = 'questions'; }
+    render();
+  } catch(e) { showToast('Error: ' + e.message); }
 }
+
 function deletePoll(id) {
   const p = state.polls.find(x => x.id === id);
   if (!p) return;
@@ -2555,26 +3026,38 @@ function deletePoll(id) {
     body: `<strong>"${p.question.substring(0, 80)}${p.question.length > 80 ? '...' : ''}"</strong><br><br>All responses will be permanently removed.`,
     confirmLabel: 'Delete',
     confirmClass: 'btn-danger',
-    onConfirm: () => {
-      state.polls = state.polls.filter(x => x.id !== id);
-      if (state.activePollId === id) state.activePollId = null;
-      saveState(); render();
-      showToast('Deleted', true);
+    onConfirm: async () => {
+      try {
+        await dbDeleteInteraction(id);
+        state.polls = state.polls.filter(x => x.id !== id);
+        if (state.activePollId === id) { state.activePollId = null; state.projectorSection = 'questions'; }
+        render();
+        showToast('Deleted', true);
+      } catch(e) { showToast('Error: ' + e.message); }
     }
   });
 }
-function showPollOnProjector(id) {
-  state.activePollId = id;
-  state.projectorSection = 'poll';
-  saveState();
-  showToast('Sent to projector', true);
-  render();
+
+async function showPollOnProjector(id) {
+  try {
+    // Clear all others first
+    await Promise.all(state.polls.filter(p => p.activeOnProjector && p.id !== id)
+      .map(p => dbUpdateInteraction(p.id, { activeOnProjector: false })));
+    await dbUpdateInteraction(id, { activeOnProjector: true });
+    state.polls.forEach(p => { p.activeOnProjector = p.id === id; });
+    state.activePollId = id;
+    state.projectorSection = 'poll';
+    render();
+    showToast('Sent to projector', true);
+  } catch(e) { showToast('Error: ' + e.message); }
 }
-function votePoll(pollId, optId) {
+
+async function votePoll(pollId, optId) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
   const prev = myPollVotes[pollId];
   if (prev === optId) return;
+  // Optimistic update
   if (prev) {
     const o = poll.options.find(x => x.id === prev);
     if (o) o.votes = Math.max(0, o.votes - 1);
@@ -2582,13 +3065,14 @@ function votePoll(pollId, optId) {
   const opt = poll.options.find(x => x.id === optId);
   if (opt) opt.votes++;
   myPollVotes[pollId] = optId;
-  savePollVotes(myPollVotes);
-  saveState();
   render();
+  try {
+    await dbCastInteractionVote(pollId, optId);
+    await dbUpdateInteraction(pollId, { options: poll.options });
+  } catch(e) { showToast('Vote failed — try again'); }
 }
 
-// New: text response (word cloud, open text)
-function submitTextResponse(pollId, btn) {
+async function submitTextResponse(pollId, btn) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
   const input = document.getElementById('p-text-input-' + pollId);
@@ -2596,29 +3080,27 @@ function submitTextResponse(pollId, btn) {
   const v = input.value.trim();
   if (!v) { showToast('Please type a response'); return; }
   if (v.length > 280) { showToast('Too long (max 280 characters)'); return; }
-  // Word cloud limits to single word/short phrase
   if (poll.type === 'word_cloud' && v.split(/\s+/).length > 3) {
-    showToast('Word cloud responses should be 1-3 words');
-    return;
+    showToast('Word cloud responses should be 1-3 words'); return;
   }
-  if (!poll.responses) poll.responses = [];
-  poll.responses.push({ text: v, at: Date.now() });
-  myPollVotes[pollId] = 'submitted_' + Date.now();
-  savePollVotes(myPollVotes);
-  input.value = '';
-  saveState();
   flashSubmitSuccess(btn);
-  // Slight delay before re-render so the user sees the success state
-  setTimeout(() => { render(); }, 200);
+  const newResponse = { text: v, at: Date.now() };
+  if (!poll.responses) poll.responses = [];
+  poll.responses.push(newResponse);
+  myPollVotes[pollId] = 'submitted_' + Date.now();
+  input.value = '';
+  try {
+    await dbUpdateInteraction(pollId, { responses: poll.responses });
+    await dbCastInteractionVote(pollId, 'text:' + v.substring(0, 50));
+  } catch(e) { showToast('Submit failed — try again'); }
+  setTimeout(() => render(), 200);
   showToast('Response submitted', true);
 }
 
-// New: rating submission
-function submitRating(pollId, value) {
+async function submitRating(pollId, value) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
   if (!poll.responses) poll.responses = [];
-  // Replace if already rated
   const prev = myPollVotes[pollId];
   if (prev && prev.startsWith('rating_')) {
     const oldRating = parseInt(prev.split('_')[1], 10);
@@ -2627,21 +3109,20 @@ function submitRating(pollId, value) {
   }
   poll.responses.push({ value, byMe: true, at: Date.now() });
   myPollVotes[pollId] = 'rating_' + value;
-  savePollVotes(myPollVotes);
-  saveState();
   render();
+  try {
+    await dbUpdateInteraction(pollId, { responses: poll.responses });
+    await dbCastInteractionVote(pollId, 'rating:' + value);
+  } catch(e) { showToast('Rating failed — try again'); }
   showToast(`You rated: ${value} ⭐`, true);
 }
 
-// New: ranking submission (drag-drop produces ordered IDs)
-function submitRanking(pollId, orderedIds) {
+async function submitRanking(pollId, orderedIds) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
-  // Each option gets points = (totalOptions - position). #1 gets the highest.
   const total = poll.options.length;
   const prev = myPollVotes[pollId];
   if (prev && prev.startsWith('ranking_')) {
-    // Undo previous ranking
     try {
       const prevOrder = JSON.parse(prev.replace('ranking_', ''));
       prevOrder.forEach((id, i) => {
@@ -2655,13 +3136,14 @@ function submitRanking(pollId, orderedIds) {
     if (opt) opt.votes += (total - i);
   });
   myPollVotes[pollId] = 'ranking_' + JSON.stringify(orderedIds);
-  savePollVotes(myPollVotes);
-  saveState();
   render();
+  try {
+    await dbUpdateInteraction(pollId, { options: poll.options });
+    await dbCastInteractionVote(pollId, 'ranking:' + orderedIds.join(','));
+  } catch(e) { showToast('Ranking failed — try again'); }
   showToast('Ranking submitted', true);
 }
 
-// Submit final ranking from drag-drop UI
 function confirmRanking(pollId) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll) return;
@@ -2670,8 +3152,7 @@ function confirmRanking(pollId) {
   submitRanking(pollId, order);
 }
 
-// Allow user to re-rate
-function changeRating(pollId) {
+async function changeRating(pollId) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll) return;
   const prev = myPollVotes[pollId];
@@ -2679,14 +3160,13 @@ function changeRating(pollId) {
     const oldRating = parseInt(prev.split('_')[1], 10);
     const idx = poll.responses.findIndex(r => r.value === oldRating && r.byMe);
     if (idx >= 0) poll.responses.splice(idx, 1);
+    await dbUpdateInteraction(pollId, { responses: poll.responses }).catch(() => {});
   }
   delete myPollVotes[pollId];
-  savePollVotes(myPollVotes);
-  saveState();
   render();
 }
 
-// Drag-drop helpers for ranking
+
 let dragSource = null;
 function rankingDragStart(e, idx) {
   dragSource = idx;
@@ -2755,23 +3235,29 @@ document.addEventListener('keydown', (e) => {
 function resetSession() {
   showConfirmModal({
     title: 'Reset all session data?',
-    body: 'This will permanently delete <strong>all questions, votes, and interactions</strong>. This cannot be undone.',
+    body: 'This will permanently delete <strong>all questions, votes, and interactions</strong> from this session. This cannot be undone.',
     confirmLabel: 'Reset everything',
     confirmClass: 'btn-danger',
-    onConfirm: () => {
-      state = getDefaultState();
-      myVotes = [];
-      myPollVotes = {};
-      myPollRankings = {};
-      saveState();
-      saveVotes(myVotes);
-      savePollVotes(myPollVotes);
-      localStorage.removeItem('quizt_rankings_v1');
-      render();
-      showToast('Session reset', true);
+    onConfirm: async () => {
+      try {
+        await Promise.all([
+          sb.from('questions').delete().eq('session_id', currentSessionId),
+          sb.from('interactions').delete().eq('session_id', currentSessionId)
+        ]);
+        state.questions = [];
+        state.polls = [];
+        state.activePollId = null;
+        state.projectorSection = 'questions';
+        myVotes = {};
+        myPollVotes = {};
+        myPollRankings = {};
+        render();
+        showToast('Session reset', true);
+      } catch(e) { showToast('Reset failed: ' + e.message); }
     }
   });
 }
+
 
 // ── Render ──
 function render() {
@@ -3388,33 +3874,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// ── Cross-tab sync (storage event fires when other tab writes) ──
-window.addEventListener('storage', (e) => {
-  if (e.key === STORAGE_KEY + '_ping' || e.key === STORAGE_KEY) {
-    state = loadState();
-    render();
+// ── Startup ──
+(async () => {
+  try { loadTheme(); } catch(e) {}
+
+  // Check if joining via URL parameter
+  const joined = await checkUrlSession();
+  if (!joined) {
+    // Show setup screen
+    document.getElementById('setup-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+
+    // Pre-fill title input if we have a recent session
+    const last = localStorage.getItem(LAST_SESSION_KEY);
+    if (last) {
+      document.getElementById('rejoin-code-input').value = last;
+    }
   }
-});
-
-// ── Initial render ──
-try {
-  loadTheme();
-} catch (e) { console.warn('Theme init failed:', e); }
-
-try {
-  drawQR();
-} catch (e) { console.warn('QR init failed:', e); }
-
-try {
-  renderTypePicker();
-  selectInteractionType('multiple_choice');
-} catch (e) { console.warn('Type picker init failed:', e); }
-
-try {
-  render();
-} catch (e) {
-  console.error('Initial render failed:', e);
-}
+})();
 </script>
 </body>
 </html>
