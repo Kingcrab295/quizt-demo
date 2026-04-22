@@ -828,14 +828,17 @@
     gap: 12px;
     padding: 10px 14px;
     background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
     user-select: none;
-    cursor: grab;
+    cursor: default;
+    transition: border-color 0.15s, background 0.15s;
   }
-  .ranking-item:active { cursor: grabbing; }
-  .ranking-item.dragging { opacity: 0.5; }
-  .ranking-item.drag-over { border-color: var(--cyan); border-style: dashed; }
+  .ranking-item.selected {
+    border-color: var(--cyan);
+    background: rgba(0,173,239,0.08);
+  }
+  .ranking-item.voted-locked { opacity: 0.6; cursor: not-allowed; }
   .ranking-rank {
     background: var(--cyan);
     color: white;
@@ -849,10 +852,47 @@
     flex-shrink: 0;
   }
   .ranking-text { flex: 1; font-size: 14px; color: var(--ink); }
-  .ranking-handle {
-    color: var(--muted);
-    cursor: grab;
+  .ranking-move-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
+  .ranking-move-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--accent-strong);
+    width: 28px; height: 24px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.1s;
+  }
+  .ranking-move-btn:hover:not(:disabled) { background: var(--bg2); }
+  .ranking-move-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+  .ranking-handle { display: none; }
+  .ranking-item.selected {
+    border-color: var(--cyan);
+    background: rgba(0,173,239,0.08);
+    cursor: default;
+  }
+  .ranking-item.selected .ranking-rank { background: var(--cyan); }
+  .ranking-move-btns { display: flex; flex-direction: column; gap: 3px; margin-left: auto; flex-shrink: 0; }
+  .ranking-move-btn {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--accent-strong);
+    width: 30px; height: 26px;
+    border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 13px; line-height: 1;
+    transition: all 0.12s;
+  }
+  .ranking-move-btn:hover:not(:disabled) { background: var(--cyan); color: white; border-color: var(--cyan); }
+  .ranking-move-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+  .ranking-tap-hint { font-size: 11px; color: var(--muted); text-align: center; margin-bottom: 10px; }
   .ranking-score {
     font-size: 12px;
     color: var(--muted);
@@ -1126,32 +1166,35 @@
     margin-bottom: 8px;
     display: flex;
     gap: 12px;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: space-between;
   }
   .vote-btn {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    min-width: 48px;
-    padding: 8px 6px;
+    gap: 8px;
+    padding: 10px 16px;
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    border: 1.5px solid var(--border);
+    border-radius: 99px;
     transition: all 0.15s;
     flex-shrink: 0;
+    cursor: pointer;
+    min-width: 70px;
+    justify-content: center;
   }
-  .vote-btn:hover { border-color: var(--cyan); }
+  .vote-btn:hover { border-color: var(--cyan); background: rgba(0,173,239,0.06); }
   .vote-btn.voted {
     background: var(--cyan);
     border-color: var(--cyan);
     color: white;
   }
   .vote-btn.voted .vote-num,
-  .vote-btn.voted .vote-arrow svg { color: white; }
-  .vote-arrow { color: var(--muted); height: 14px; line-height: 0; }
-  .vote-arrow svg { width: 14px; height: 14px; }
-  .vote-num { font-size: 15px; font-weight: 700; color: var(--accent-strong); line-height: 1.2; }
+  .vote-btn.voted .vote-icon { color: white; }
+  .vote-icon { color: var(--muted); display: flex; align-items: center; }
+  .vote-icon svg { width: 18px; height: 18px; }
+  .vote-btn.voted .vote-icon svg { fill: white; color: white; }
+  .vote-num { font-size: 14px; font-weight: 700; color: var(--accent-strong); }
 
   .p-q-content { flex: 1; }
   .p-q-text { font-size: 14px; line-height: 1.5; color: var(--ink); }
@@ -2611,13 +2654,15 @@ const myVoterToken = getVoterToken();
 // ── Session state ──
 // State is now derived from Supabase data, not localStorage.
 // We keep a local in-memory copy that gets updated by real-time subscriptions.
-let currentSessionId = null;  // e.g. "QT-123456"
+let currentSessionId = null;
 let currentSessionTitle = '';
-let isParticipantMode = false; // true when joined via URL as participant — locks UI
-let state = getEmptyState();
+let isParticipantMode = false;
+let initialLoadDone = false; // after first load, refreshAllData never touches projector state
+let state = getEmptyState(); initialLoadDone = false;
 let myVotes = {};         // questionId → true (voted)
 let myPollVotes = {};     // interactionId → value string
-let myPollRankings = {};  // interactionId → ordered option ids
+let myPollRankings = {};     // interactionId → ordered option ids
+let rankingSelected = {};   // interactionId → currently selected item index
 
 function getEmptyState() {
   return {
@@ -2752,7 +2797,7 @@ function signOutHost() {
     stopRefreshTimer();
     currentSessionId = null;
     currentSessionTitle = '';
-    state = getEmptyState();
+    state = getEmptyState(); initialLoadDone = false;
     localStorage.removeItem(LAST_SESSION_KEY);
   }
   document.getElementById('library-page').classList.remove('active');
@@ -2776,7 +2821,7 @@ function goToLibrary() {
   currentSessionId = null;
   currentSessionTitle = '';
   isParticipantMode = false;
-  state = getEmptyState();
+  state = getEmptyState(); initialLoadDone = false;
   presenceCount = 0;
   updatePresenceCount(0);
   document.getElementById('app').style.display = 'none';
@@ -2835,8 +2880,9 @@ async function loadLibrarySessions() {
       const date = new Date(s.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
       return `
         <div class="lib-card ${isEnded ? 'ended' : ''}"
-          data-sid="${s.id}" data-stitle="${s.title.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
-          ${!isEnded ? `onclick="openLibrarySession(this.dataset.sid, this.dataset.stitle)"` : ''}>
+          data-sid="${s.id}"
+          data-stitle="${s.title.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
+          data-ended="${isEnded ? '1' : '0'}">
           <div class="lib-card-info">
             <div class="lib-card-title">${escapeHtml(s.title)}</div>
             <div class="lib-card-meta">
@@ -2846,13 +2892,29 @@ async function loadLibrarySessions() {
               <span class="lib-status ${isEnded ? 'ended' : 'active'}">${isEnded ? 'Ended' : 'Active'}</span>
             </div>
           </div>
-          <div class="lib-card-actions" onclick="event.stopPropagation()">
-            ${!isEnded ? `<button class="btn btn-outline btn-sm" onclick="openLibrarySession(this.closest('[data-sid]').dataset.sid, this.closest('[data-sid]').dataset.stitle)">Open</button>` : ''}
-            <button class="btn btn-danger btn-sm" onclick="deleteLibrarySession(this.closest('[data-sid]').dataset.sid, this.closest('[data-sid]').dataset.stitle)">Delete</button>
+          <div class="lib-card-actions">
+            ${!isEnded ? `<button class="btn btn-outline btn-sm lib-open-btn">Open</button>` : ''}
+            <button class="btn btn-danger btn-sm lib-delete-btn">Delete</button>
           </div>
         </div>
       `;
     }).join('');
+
+    // Delegated listener — avoids inline onclick quote issues on all devices
+    container.addEventListener('click', function(e) {
+      const card = e.target.closest('.lib-card');
+      if (!card) return;
+      const sid = card.dataset.sid;
+      const stitle = card.dataset.stitle;
+      const isEnded = card.dataset.ended === '1';
+      if (e.target.closest('.lib-delete-btn')) {
+        deleteLibrarySession(sid, stitle);
+      } else if (!isEnded && !e.target.closest('.lib-card-actions')) {
+        openLibrarySession(sid, stitle);
+      } else if (e.target.closest('.lib-open-btn')) {
+        openLibrarySession(sid, stitle);
+      }
+    });
   } catch(e) {
     container.innerHTML = `<div class="library-empty">Error: ${escapeHtml(e.message)}</div>`;
   }
@@ -2898,7 +2960,7 @@ function deleteLibrarySession(id, title) {
 async function loadSession(sessionId, sessionTitle, isHost) {
   currentSessionId = sessionId;
   currentSessionTitle = sessionTitle;
-  state = getEmptyState();
+  state = getEmptyState(); initialLoadDone = false;
   state.sessionCode = sessionId;
   state.sessionTitle = sessionTitle;
   // Build join URL — use actual URL if hosted, fallback to session code display if local
@@ -2994,14 +3056,14 @@ async function refreshAllData() {
       if (v.interaction_id) myPollVotes[v.interaction_id] = v.value;
     });
 
-    // Figure out active poll — only set on initial load (when activePollId is null)
-    // Never override projector state during background refreshes
-    if (state.activePollId === null) {
+    // Set active poll on first load only — never override after that
+    if (!initialLoadDone) {
       const activeInteraction = state.polls.find(p => p.activeOnProjector && p.status === 'live');
       if (activeInteraction) {
         state.activePollId = activeInteraction.id;
         state.projectorSection = 'poll';
       }
+      initialLoadDone = true;
     }
 
     setSyncDot('');
@@ -3965,87 +4027,51 @@ async function submitRanking(pollId, orderedIds) {
   showToast('Ranking submitted', true);
 }
 
+// Tap-select ranking functions
+function rankingTapSelect(pollId, idx) {
+  if (rankingSelected[pollId] === idx) {
+    rankingSelected[pollId] = null; // tap same item to deselect
+  } else {
+    rankingSelected[pollId] = idx;
+  }
+  renderParticipant();
+}
+
+function rankingMoveItem(pollId, fromIdx, direction) {
+  const poll = state.polls.find(x => x.id === pollId);
+  if (!poll) return;
+  let order = myPollRankings[pollId];
+  if (!order) order = poll.options.map(o => o.id);
+  const toIdx = fromIdx + direction;
+  if (toIdx < 0 || toIdx >= order.length) return;
+  // Swap
+  const tmp = order[fromIdx];
+  order[fromIdx] = order[toIdx];
+  order[toIdx] = tmp;
+  myPollRankings[pollId] = order;
+  rankingSelected[pollId] = toIdx; // follow the moved item
+  localStorage.setItem('quizt_rankings_v1', JSON.stringify(myPollRankings));
+  renderParticipant();
+}
+
 function confirmRanking(pollId) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll) return;
   let order = myPollRankings[pollId];
   if (!order) order = poll.options.map(o => o.id);
-  submitRanking(pollId, order);
-}
-
-async function changeRating(pollId) {
-  const poll = state.polls.find(x => x.id === pollId);
-  if (!poll) return;
-  const prev = myPollVotes[pollId];
-  if (prev && prev.startsWith('rating_')) {
-    const oldRating = parseInt(prev.split('_')[1], 10);
-    const idx = poll.responses.findIndex(r => r.value === oldRating && r.byMe);
-    if (idx >= 0) poll.responses.splice(idx, 1);
-    await dbUpdateInteraction(pollId, { responses: poll.responses }).catch(() => {});
-  }
-  delete myPollVotes[pollId];
-  render();
-}
-
-
-let dragSource = null;
-function rankingDragStart(e, idx) {
-  dragSource = idx;
-  e.target.classList.add('dragging');
-}
-function rankingDragEnd(e) {
-  e.target.classList.remove('dragging');
-  document.querySelectorAll('.ranking-item').forEach(el => el.classList.remove('drag-over'));
-}
-function rankingDragOver(e, idx) {
-  e.preventDefault();
-  e.currentTarget.classList.add('drag-over');
-}
-function rankingDragLeave(e) {
-  e.currentTarget.classList.remove('drag-over');
-}
-function rankingDrop(e, targetIdx, pollId) {
-  e.preventDefault();
-  e.currentTarget.classList.remove('drag-over');
-  if (dragSource === null || dragSource === targetIdx) return;
-  // Reorder local state
-  if (!myPollRankings) myPollRankings = {};
-  let order = myPollRankings[pollId];
-  const poll = state.polls.find(x => x.id === pollId);
-  if (!order) order = poll.options.map(o => o.id);
-  const moved = order.splice(dragSource, 1)[0];
-  order.splice(targetIdx, 0, moved);
-  myPollRankings[pollId] = order;
-  localStorage.setItem('quizt_rankings_v1', JSON.stringify(myPollRankings));
-  dragSource = null;
-  render();
-}
-
-// ── Reset (demo only) ──
-// Confirmation modal (replaces native confirm() for destructive actions)
-function showConfirmModal(opts) {
-  const modal = document.getElementById('confirm-modal');
-  document.getElementById('confirm-modal-title').textContent = opts.title || 'Are you sure?';
-  document.getElementById('confirm-modal-body').innerHTML = opts.body || 'This action cannot be undone.';
-  const confirmBtn = document.getElementById('confirm-modal-confirm');
-  confirmBtn.textContent = opts.confirmLabel || 'Confirm';
-  confirmBtn.className = 'btn ' + (opts.confirmClass || 'btn-danger');
-  // Re-bind the confirm handler cleanly
-  const newBtn = confirmBtn.cloneNode(true);
-  confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
-  newBtn.addEventListener('click', () => {
-    closeConfirmModal();
-    if (opts.onConfirm) opts.onConfirm();
+  const preview = order.map((id, i) => {
+    const opt = poll.options.find(o => o.id === id);
+    return `${i+1}. ${escapeHtml(opt?.text || id)}`;
+  }).join('<br>');
+  showConfirmModal({
+    title: 'Submit this ranking?',
+    body: `Your final order:<br><br><div style="font-size:13px;line-height:2;">${preview}</div><br>You cannot change this after submitting.`,
+    confirmLabel: 'Submit ranking',
+    confirmClass: 'btn-primary',
+    onConfirm: () => submitRanking(pollId, order)
   });
-  modal.classList.add('show');
 }
-function closeConfirmModal() {
-  document.getElementById('confirm-modal').classList.remove('show');
-}
-function closeConfirmModalBackdrop(e) {
-  if (e.target.id === 'confirm-modal') closeConfirmModal();
-}
-// Close on Escape key
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     const m = document.getElementById('confirm-modal');
@@ -4069,7 +4095,7 @@ function leaveSession() {
       currentSessionId = null;
       currentSessionTitle = '';
       isParticipantMode = false;
-      state = getEmptyState();
+      state = getEmptyState(); initialLoadDone = false;
       presenceCount = 0;
       updatePresenceCount(0);
       // Go back to library
@@ -4127,14 +4153,39 @@ function resetSession() {
 
 
 // ── Render ──
+// Track if participant is actively typing — prevents render from destroying their input
+let _participantRenderPending = false;
+
 function render() {
   renderHost();
-  renderParticipant();
   renderProjector();
+
+  // If a text input in the participant view is focused, defer participant render
+  // to avoid destroying the user's input mid-typing (especially Thai keyboard / spacebar)
+  const active = document.activeElement;
+  const isTypingInParticipant = active && (
+    active.tagName === 'INPUT' || active.tagName === 'TEXTAREA'
+  ) && document.getElementById('view-participant')?.contains(active);
+
+  if (isTypingInParticipant) {
+    _participantRenderPending = true;
+  } else {
+    _participantRenderPending = false;
+    renderParticipant();
+  }
+
   // Sync toggles
   document.getElementById('toggle-mod').classList.toggle('on', state.settings.moderation);
   document.getElementById('toggle-anon').classList.toggle('on', state.settings.anonymous);
 }
+
+// When participant finishes typing (blur), catch up if a render was deferred
+document.addEventListener('blur', (e) => {
+  if (_participantRenderPending) {
+    _participantRenderPending = false;
+    renderParticipant();
+  }
+}, true); // capture phase so it fires before focus moves
 
 function renderHost() {
   // Counts
@@ -4378,8 +4429,12 @@ function renderParticipant() {
         const voted = !!myVotes[q.id];
         return `
           <div class="p-q-card">
-            <button class="vote-btn ${voted ? 'voted' : ''}" onclick="toggleVote(${q.id})">
-              <div class="vote-arrow"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg></div>
+            <button class="vote-btn ${voted ? 'voted' : ''}" onclick="toggleVote(${q.id})" title="${voted ? 'Remove upvote' : 'Upvote'}">
+              <div class="vote-icon">
+                <svg viewBox="0 0 24 24" fill="${voted ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905a3.61 3.61 0 01-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/>
+                </svg>
+              </div>
               <div class="vote-num">${q.votes}</div>
             </button>
             <div class="p-q-content">
@@ -4406,13 +4461,13 @@ function renderParticipant() {
 
         if (type === 'multiple_choice') {
           const total = p.options.reduce((s,o) => s + o.votes, 0) || 1;
-          titleHtml = voted ? 'Live results' : 'Tap to vote';
+          titleHtml = voted ? 'Voted ✓' : 'Tap to vote';
           bodyHtml = p.options.map(o => {
             if (voted) {
               const pct = Math.round((o.votes / total) * 100);
               const isMine = myChoice === o.id;
               return `
-                <div class="poll-option-row" style="${isMine ? 'border: 1.5px solid var(--cyan);' : ''}">
+                <div class="poll-option-row" style="${isMine ? 'border: 1.5px solid var(--cyan);' : 'opacity:0.7;'}">
                   <div class="poll-option-bar" style="width: ${pct}%;"></div>
                   <div class="poll-option-text">${escapeHtml(o.text)}${isMine ? ' ✓' : ''}</div>
                   <div class="poll-option-count">${o.votes}</div>
@@ -4427,7 +4482,7 @@ function renderParticipant() {
               </button>
             `;
           }).join('');
-          if (voted) bodyHtml += `<div style="font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center;">${total} total votes</div>`;
+          if (voted) bodyHtml += `<div style="font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center;">${total} total votes · your choice is locked</div>`;
 
         } else if (type === 'word_cloud') {
           titleHtml = voted ? 'Thanks for your response' : 'Submit a word or short phrase';
@@ -4472,21 +4527,24 @@ function renderParticipant() {
           const myRating = voted && myChoice.startsWith('rating_') ? parseInt(myChoice.split('_')[1], 10) : 0;
           titleHtml = voted ? `You rated: ${myRating} ★` : 'Tap to rate (1–5)';
           const starsHtml = [1,2,3,4,5].map(n => `
-            <svg class="p-rating-star ${myRating >= n ? 'filled' : ''}" fill="currentColor" viewBox="0 0 24 24" onclick="submitRating(${p.id}, ${n})">
+            <svg class="p-rating-star ${myRating >= n ? 'filled' : ''} ${voted ? 'locked' : ''}"
+              fill="currentColor" viewBox="0 0 24 24"
+              ${!voted ? `onclick="submitRating(${p.id}, ${n})"` : ''}
+              style="${voted ? 'cursor:not-allowed;opacity:0.7;' : 'cursor:pointer;'}">
               <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
             </svg>
           `).join('');
-          bodyHtml = `<div class="p-rating-stars">${starsHtml}</div>`;
+          bodyHtml = `<div class="p-rating-stars" style="${voted ? 'opacity:0.85;' : ''}">${starsHtml}</div>`;
           if (voted) {
             const responses = p.responses || [];
             const sum = responses.reduce((s,r) => s + r.value, 0);
             const avg = responses.length > 0 ? (sum / responses.length).toFixed(1) : '0';
-            bodyHtml += `<div style="font-size: 12px; color: var(--muted); text-align: center; margin-top: 6px;">Group average: <strong style="color: var(--ink);">${avg}</strong> · ${responses.length} rating${responses.length === 1 ? '' : 's'}</div>`;
-            bodyHtml += `<div style="text-align: center; margin-top: 8px;"><button class="btn btn-outline btn-sm" onclick="changeRating(${p.id})">Change my rating</button></div>`;
+            bodyHtml += `<div style="font-size: 12px; color: var(--muted); text-align: center; margin-top: 6px;">Your rating: <strong style="color:var(--cyan);">${myRating}★</strong> · Group average: <strong style="color: var(--ink);">${avg}</strong> (${responses.length} ratings)</div>`;
+            bodyHtml += `<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px;">Rating locked ✓</div>`;
           }
 
         } else if (type === 'ranking') {
-          titleHtml = voted ? 'Your ranking is submitted' : 'Drag to rank (most preferred at top)';
+          titleHtml = voted ? 'Your ranking is submitted ✓' : 'Tap to select, then use ▲▼ to reorder';
           let order = myPollRankings[p.id];
           if (!order) order = p.options.map(o => o.id);
           if (voted) {
@@ -4501,21 +4559,21 @@ function renderParticipant() {
             `).join('') + `</div>`;
             bodyHtml += `<div style="font-size: 11px; color: var(--muted); margin-top: 8px; text-align: center;">Current group ranking</div>`;
           } else {
-            bodyHtml = `<div class="ranking-list" id="ranking-list-${p.id}">` + order.map((id, i) => {
+            const selIdx = rankingSelected[p.id] ?? null;
+            bodyHtml = `<div class="ranking-tap-hint">Tap an item to select it, then use ▲▼ to move it</div>`;
+            bodyHtml += `<div class="ranking-list" id="ranking-list-${p.id}">` + order.map((id, i) => {
               const o = p.options.find(opt => opt.id === id);
               if (!o) return '';
+              const isSel = selIdx === i;
               return `
-                <div class="ranking-item" draggable="true"
-                     ondragstart="rankingDragStart(event, ${i})"
-                     ondragend="rankingDragEnd(event)"
-                     ondragover="rankingDragOver(event, ${i})"
-                     ondragleave="rankingDragLeave(event)"
-                     ondrop="rankingDrop(event, ${i}, ${p.id})">
+                <div class="ranking-item ${isSel ? 'selected' : ''}" onclick="rankingTapSelect(${p.id}, ${i})" style="cursor:pointer;">
                   <div class="ranking-rank">${i + 1}</div>
                   <div class="ranking-text">${escapeHtml(o.text)}</div>
-                  <div class="ranking-handle">
-                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M9 3h2v2H9V3zm4 0h2v2h-2V3zM9 7h2v2H9V7zm4 0h2v2h-2V7zM9 11h2v2H9v-2zm4 0h2v2h-2v-2zM9 15h2v2H9v-2zm4 0h2v2h-2v-2zM9 19h2v2H9v-2zm4 0h2v2h-2v-2z"/></svg>
-                  </div>
+                  ${isSel ? `
+                  <div class="ranking-move-btns" onclick="event.stopPropagation()">
+                    <button class="ranking-move-btn" onclick="rankingMoveItem(${p.id}, ${i}, -1)" ${i === 0 ? 'disabled' : ''}>▲</button>
+                    <button class="ranking-move-btn" onclick="rankingMoveItem(${p.id}, ${i}, 1)" ${i === order.length - 1 ? 'disabled' : ''}>▼</button>
+                  </div>` : ''}
                 </div>
               `;
             }).join('') + `</div>`;
