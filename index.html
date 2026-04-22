@@ -624,7 +624,7 @@
     top: 0;
     left: 0;
     bottom: 0;
-    background: linear-gradient(90deg, color-mix(in srgb, var(--cyan) 35%, transparent) 0%, color-mix(in srgb, var(--cyan) 18%, transparent) 100%);
+    background: linear-gradient(90deg, rgba(0,173,239,0.35) 0%, rgba(0,173,239,0.18) 100%);
     transition: width 0.4s ease;
     z-index: 0;
   }
@@ -692,7 +692,7 @@
   .type-card:hover { border-color: var(--cyan); }
   .type-card.selected {
     border-color: var(--cyan);
-    background: color-mix(in srgb, var(--cyan) 10%, var(--surface));
+    background: rgba(0,173,239,0.10);
   }
   .type-card svg {
     width: 22px; height: 22px;
@@ -1249,7 +1249,7 @@
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--red) 15%, transparent);
+    background: rgba(232,48,42,0.15);
     color: var(--red);
     display: flex;
     align-items: center;
@@ -1481,6 +1481,78 @@
   }
   .demo-notice strong { color: var(--muted); font-weight: 500; }
 
+  /* ── Sessions library ── */
+  .sessions-library-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .sessions-loading {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .session-lib-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .session-lib-card.is-current {
+    border-color: var(--cyan);
+    background: rgba(0,173,239,0.06);
+  }
+  .session-lib-card.is-ended {
+    opacity: 0.65;
+  }
+  .session-lib-info { flex: 1; min-width: 0; }
+  .session-lib-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+  .session-lib-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .session-lib-code {
+    font-size: 11px;
+    font-family: monospace;
+    letter-spacing: 1.5px;
+    color: var(--accent-strong);
+    font-weight: 600;
+  }
+  .session-lib-date { font-size: 11px; color: var(--muted); }
+  .session-lib-qcount { font-size: 11px; color: var(--muted); }
+  .session-lib-status {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 99px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .session-lib-status.active { background: var(--live-bg); color: var(--live-fg); }
+  .session-lib-status.ended { background: var(--bg2); color: var(--muted); }
+  .session-lib-status.current { background: var(--cyan); color: white; }
+  .session-lib-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* reset-link already defined above */
+
   /* Reset session button */
   /* ── Session setup screen ── */
   .setup-screen {
@@ -1581,7 +1653,7 @@
     transition: all 0.15s;
     background: var(--surface);
   }
-  .role-choice-card:hover { border-color: var(--cyan); background: color-mix(in srgb, var(--cyan) 8%, var(--surface)); }
+  .role-choice-card:hover { border-color: var(--cyan); background: rgba(0,173,239,0.08); }
   .role-choice-card svg { width: 32px; height: 32px; color: var(--cyan); margin-bottom: 10px; }
   .role-choice-card-title { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
   .role-choice-card-desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
@@ -1624,14 +1696,14 @@
 
   /* Export menu */
   .export-menu {
-    position: absolute;
+    position: fixed;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
     padding: 6px;
-    min-width: 220px;
-    z-index: 200;
+    min-width: 240px;
+    z-index: 500;
     display: none;
   }
   .export-menu.show { display: block; }
@@ -1897,6 +1969,9 @@
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
     <span>Export</span>
   </button>
+  <button class="header-action" id="leave-session-btn" title="Leave session" onclick="leaveSession()" style="color: rgba(255,255,255,0.6);">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+  </button>
   <button class="header-action" id="theme-toggle" title="Toggle dark mode" onclick="toggleTheme()">
     <svg id="theme-icon-sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display:none;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
     <svg id="theme-icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
@@ -1917,6 +1992,7 @@
         <div class="host-tabs">
           <button class="host-tab active" data-host-tab="questions">Questions</button>
           <button class="host-tab" data-host-tab="polls">Interactions</button>
+          <button class="host-tab" data-host-tab="sessions">Sessions</button>
         </div>
 
         <!-- Questions tab -->
@@ -1995,6 +2071,23 @@
               <div class="panel-count" id="polls-count">0</div>
             </div>
             <div class="panel-body" id="polls-list"></div>
+          </div>
+        </div>
+
+        <!-- ── SESSIONS LIBRARY ── -->
+        <div id="host-sessions" style="display: none;">
+          <div class="sessions-library-header">
+            <div>
+              <div style="font-size: 16px; font-weight: 700; color: var(--ink);">Session library</div>
+              <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">All sessions stored in your database</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="renderSessionsLibrary()" title="Refresh list">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              Refresh
+            </button>
+          </div>
+          <div id="sessions-library-list">
+            <div class="sessions-loading">Loading sessions...</div>
           </div>
         </div>
       </div>
@@ -2288,6 +2381,7 @@ function getEmptyState() {
   return {
     sessionCode: '',
     sessionTitle: '',
+    sessionStatus: 'active',
     questions: [],
     polls: [],
     nextQuestionId: 1,
@@ -2381,7 +2475,11 @@ async function loadSession(sessionId, sessionTitle, isHost) {
   state = getEmptyState();
   state.sessionCode = sessionId;
   state.sessionTitle = sessionTitle;
-  state.joinUrl = window.location.origin + window.location.pathname + '?session=' + sessionId;
+  // Build join URL — use actual URL if hosted, fallback to session code display if local
+  const isLocal = window.location.protocol === 'file:';
+  state.joinUrl = isLocal
+    ? '(scan QR code to join — session: ' + sessionId + ')'
+    : window.location.origin + window.location.pathname + '?session=' + sessionId;
 
   // Persist for refresh recovery (host only)
   if (isHost) saveToRecentSessions(sessionId, sessionTitle);
@@ -2437,10 +2535,14 @@ async function refreshAllData() {
   setSyncDot('syncing');
   try {
     const sid = currentSessionId;
-    const [{ data: questions }, { data: interactions }] = await Promise.all([
+    const [{ data: sessionData }, { data: questions }, { data: interactions }] = await Promise.all([
+      sb.from('sessions').select('status, title').eq('id', sid).single(),
       sb.from('questions').select('*').eq('session_id', sid).order('created_at'),
       sb.from('interactions').select('*').eq('session_id', sid).order('created_at')
     ]);
+
+    // Update session status
+    if (sessionData) state.sessionStatus = sessionData.status || 'active';
 
     state.questions = (questions || []).map(dbToQuestion);
     state.polls = (interactions || []).map(dbToInteraction);
@@ -2578,6 +2680,20 @@ function subscribeRealtime(sessionId) {
     realtimeChannel = null;
   }
   realtimeChannel = sb.channel('quizt-' + sessionId)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'sessions' },
+      (payload) => {
+        const row = payload.new || payload.old;
+        if (row && row.id !== sessionId) return;
+        if (payload.new && payload.new.status) {
+          state.sessionStatus = payload.new.status;
+          render();
+          // Show banner to participants when session ends
+          if (payload.new.status === 'ended' && isParticipantMode) {
+            showConnBanner('This session has ended — thank you for participating', 'reconnected', false);
+          }
+        }
+      })
     .on('postgres_changes',
       { event: '*', schema: 'public', table: 'questions' },
       (payload) => {
@@ -2777,9 +2893,11 @@ document.querySelectorAll('.host-tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.host-tab').forEach(x => x.classList.remove('active'));
     btn.classList.add('active');
-    const isQ = btn.dataset.hostTab === 'questions';
-    document.getElementById('host-questions').style.display = isQ ? 'block' : 'none';
-    document.getElementById('host-polls').style.display = isQ ? 'none' : 'block';
+    const tab = btn.dataset.hostTab;
+    document.getElementById('host-questions').style.display = tab === 'questions' ? 'block' : 'none';
+    document.getElementById('host-polls').style.display = tab === 'polls' ? 'block' : 'none';
+    document.getElementById('host-sessions').style.display = tab === 'sessions' ? 'block' : 'none';
+    if (tab === 'sessions') renderSessionsLibrary();
   });
 });
 
@@ -3047,6 +3165,12 @@ async function approveQuestion(id) {
     await dbUpdateQuestion(id, { status: 'live' });
     const q = state.questions.find(x => x.id === id);
     if (q) { q.status = 'live'; render(); }
+    // Increment session question count
+    await sb.rpc('increment_question_count', { session_id: currentSessionId }).catch(() => {
+      // Fallback: manual increment
+      const count = state.questions.filter(x => x.status === 'live').length;
+      sb.from('sessions').update({ question_count: count }).eq('id', currentSessionId).then(() => {});
+    });
   } catch(e) { showToast('Error: ' + e.message); }
 }
 async function rejectQuestion(id) {
@@ -3093,6 +3217,7 @@ async function saveEditQuestion(id) {
 
 // ── Question submission (participant) ──
 async function submitQuestion(btn) {
+  if (state.sessionStatus === 'ended') { showToast('This session has ended'); return; }
   const text = document.getElementById('p-question-text').value.trim();
   const name = document.getElementById('p-name').value.trim();
   if (!text) { showToast('Please type a question'); return; }
@@ -3464,6 +3589,160 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ── Session library ──
+
+async function renderSessionsLibrary() {
+  const container = document.getElementById('sessions-library-list');
+  if (!container) return;
+  container.innerHTML = '<div class="sessions-loading">Loading sessions...</div>';
+  try {
+    const { data, error } = await sb.from('sessions')
+      .select('id, title, status, created_at, question_count')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div class="sessions-loading">No sessions yet.</div>';
+      return;
+    }
+    container.innerHTML = data.map(s => {
+      const isCurrent = s.id === currentSessionId;
+      const isEnded = s.status === 'ended';
+      const date = new Date(s.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const statusLabel = isCurrent ? 'current' : (isEnded ? 'ended' : 'active');
+      const statusText = isCurrent ? 'Current' : (isEnded ? 'Ended' : 'Active');
+      return `
+        <div class="session-lib-card ${isCurrent ? 'is-current' : ''} ${isEnded ? 'is-ended' : ''}">
+          <div class="session-lib-info">
+            <div class="session-lib-title">${escapeHtml(s.title)}</div>
+            <div class="session-lib-meta">
+              <span class="session-lib-code">${s.id}</span>
+              <span class="session-lib-date">${date}</span>
+              <span class="session-lib-qcount">${s.question_count} question${s.question_count !== 1 ? 's' : ''}</span>
+              <span class="session-lib-status ${statusLabel}">${statusText}</span>
+            </div>
+          </div>
+          <div class="session-lib-actions">
+            ${isCurrent ? `
+              <button class="btn btn-outline btn-sm" onclick="endSession()" style="color: var(--red); border-color: var(--red);">End session</button>
+            ` : `
+              ${!isEnded ? `<button class="btn btn-outline btn-sm" onclick="switchToSession('${s.id}', '${escapeHtml(s.title).replace(/'/g, "\\'")}')">Switch</button>` : ''}
+            `}
+            <button class="btn btn-danger btn-sm" onclick="deleteSessionFromLibrary('${s.id}', '${escapeHtml(s.title).replace(/'/g, "\\'")}')">Delete</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) {
+    container.innerHTML = `<div class="sessions-loading">Error loading sessions: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function leaveSession() {
+  showConfirmModal({
+    title: 'Leave this session?',
+    body: 'Your session stays active in Supabase. Participants can still view it. You can rejoin anytime from the setup screen.',
+    confirmLabel: 'Leave session',
+    confirmClass: 'btn-outline',
+    onConfirm: () => {
+      // Stop real-time and timers
+      if (realtimeChannel) { realtimeChannel.unsubscribe(); realtimeChannel = null; }
+      stopRefreshTimer();
+      currentSessionId = null;
+      currentSessionTitle = '';
+      isParticipantMode = false;
+      state = getEmptyState();
+      // Show setup screen
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('setup-screen').style.display = 'flex';
+      document.getElementById('setup-new').style.display = 'block';
+      document.getElementById('setup-loading').style.display = 'none';
+      document.getElementById('setup-role-choice').style.display = 'none';
+      // Restore role switcher visibility
+      document.querySelector('.role-switcher').style.display = '';
+      const exportBtn = document.getElementById('export-btn');
+      if (exportBtn) exportBtn.style.display = '';
+      renderRecentSessions();
+    }
+  });
+}
+
+function endSession() {
+  showConfirmModal({
+    title: 'End this session?',
+    body: 'This closes the session for all participants. They will see a "session ended" message. <strong>Data is preserved</strong> — you can still view and export results.',
+    confirmLabel: 'End session',
+    confirmClass: 'btn-danger',
+    onConfirm: async () => {
+      try {
+        await sb.from('sessions').update({ status: 'ended' }).eq('id', currentSessionId);
+        showToast('Session ended — data preserved', true);
+        // Refresh the library view
+        renderSessionsLibrary();
+        // Switch participant real-time to show ended state
+        render();
+      } catch(e) { showToast('Error: ' + e.message); }
+    }
+  });
+}
+
+async function switchToSession(id, title) {
+  showConfirmModal({
+    title: 'Switch to this session?',
+    body: `You'll leave the current session (<strong>${escapeHtml(currentSessionTitle)}</strong>) and switch to <strong>${escapeHtml(title)}</strong>. Your current session stays active.`,
+    confirmLabel: 'Switch',
+    confirmClass: 'btn-primary',
+    onConfirm: async () => {
+      if (realtimeChannel) { realtimeChannel.unsubscribe(); realtimeChannel = null; }
+      stopRefreshTimer();
+      await loadSession(id, title, true);
+      // Switch back to questions tab
+      document.querySelectorAll('.host-tab').forEach(b => b.classList.remove('active'));
+      document.querySelector('[data-host-tab="questions"]').classList.add('active');
+      document.getElementById('host-questions').style.display = 'block';
+      document.getElementById('host-polls').style.display = 'none';
+      document.getElementById('host-sessions').style.display = 'none';
+      showToast('Switched to ' + title, true);
+    }
+  });
+}
+
+function deleteSessionFromLibrary(id, title) {
+  showConfirmModal({
+    title: 'Delete session?',
+    body: `This will permanently delete <strong>"${escapeHtml(title)}"</strong> and all its questions, votes, and interactions. This cannot be undone.`,
+    confirmLabel: 'Delete session',
+    confirmClass: 'btn-danger',
+    onConfirm: async () => {
+      try {
+        // Delete questions and interactions (votes cascade)
+        await Promise.all([
+          sb.from('questions').delete().eq('session_id', id),
+          sb.from('interactions').delete().eq('session_id', id)
+        ]);
+        await sb.from('sessions').delete().eq('id', id);
+        // Remove from local recent list
+        const recent = getRecentSessions().filter(s => s.id !== id);
+        localStorage.setItem(RECENT_SESSIONS_KEY, JSON.stringify(recent));
+        if (localStorage.getItem(LAST_SESSION_KEY) === id) localStorage.removeItem(LAST_SESSION_KEY);
+        // If we just deleted the current session, leave
+        if (id === currentSessionId) {
+          if (realtimeChannel) { realtimeChannel.unsubscribe(); realtimeChannel = null; }
+          stopRefreshTimer();
+          currentSessionId = null;
+          state = getEmptyState();
+          document.getElementById('app').style.display = 'none';
+          document.getElementById('setup-screen').style.display = 'flex';
+          document.getElementById('setup-new').style.display = 'block';
+          renderRecentSessions();
+        } else {
+          renderSessionsLibrary();
+        }
+        showToast('Session deleted', true);
+      } catch(e) { showToast('Error: ' + e.message); }
+    }
+  });
+}
+
 function resetSession() {
   showConfirmModal({
     title: 'Reset all session data?',
@@ -3723,6 +4002,18 @@ function pollCardHtml(p) {
 }
 
 function renderParticipant() {
+  // Check if session has ended
+  if (state.sessionStatus === 'ended') {
+    const endedHtml = `
+      <div style="text-align:center; padding: 60px 20px;">
+        <div style="font-size: 40px; margin-bottom: 16px;">✓</div>
+        <div style="font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">Session has ended</div>
+        <div style="font-size: 14px; color: var(--muted);">Thank you for participating in <strong>${escapeHtml(state.sessionTitle)}</strong></div>
+      </div>`;
+    document.getElementById('p-questions-list').innerHTML = endedHtml;
+    document.getElementById('p-polls-list').innerHTML = '';
+    return;
+  }
   // Live questions for voting
   const live = state.questions.filter(q => q.status === 'live').sort((a,b) => b.votes - a.votes);
   const html = live.length === 0
@@ -3894,6 +4185,20 @@ function renderParticipant() {
 }
 
 function renderProjector() {
+  // Session ended state
+  if (state.sessionStatus === 'ended') {
+    document.getElementById('proj-questions').innerHTML = `
+      <div class="proj-empty" style="padding: 120px 20px;">
+        <div style="font-size: 64px; margin-bottom: 20px;">✓</div>
+        <div style="font-size: 32px; font-weight: 700; margin-bottom: 12px;">${escapeHtml(state.sessionTitle)}</div>
+        <div style="font-size: 18px; opacity: 0.7;">Session ended — thank you for participating</div>
+      </div>`;
+    document.getElementById('proj-poll').innerHTML = '';
+    document.getElementById('proj-questions').style.display = 'block';
+    document.getElementById('proj-poll').style.display = 'none';
+    return;
+  }
+
   // Populate poll picker dropdown
   const picker = document.getElementById('proj-poll-picker');
   if (picker) {
