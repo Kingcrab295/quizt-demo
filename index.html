@@ -2574,7 +2574,12 @@
 // ── Supabase config ──
 const SUPABASE_URL = 'https://iyltrhsmupkzifxgvvzr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5bHRyaHNtdXBremlmeGd2dnpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NDY3NDUsImV4cCI6MjA5MjMyMjc0NX0.kYKkw0NZlYw4YppwxwawIqHCf67RiRuYj4ICrZcNwNE';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  realtime: {
+    params: { eventsPerSecond: 10 },  // throttle to avoid flooding on 150 users
+    timeout: 30000,                    // longer timeout for slow corporate networks
+  }
+});
 
 // localStorage keys (only non-sensitive client-side state)
 const VOTER_TOKEN_KEY = 'quizt_voter_token';
@@ -3935,13 +3940,9 @@ async function showPollOnProjector(id) {
 async function votePoll(pollId, optId) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
-  const prev = myPollVotes[pollId];
-  if (prev === optId) return;
+  // Lock after first vote — no switching allowed
+  if (myPollVotes[pollId]) return;
   // Optimistic update
-  if (prev) {
-    const o = poll.options.find(x => x.id === prev);
-    if (o) o.votes = Math.max(0, o.votes - 1);
-  }
   const opt = poll.options.find(x => x.id === optId);
   if (opt) opt.votes++;
   myPollVotes[pollId] = optId;
@@ -3983,13 +3984,9 @@ async function submitTextResponse(pollId, btn) {
 async function submitRating(pollId, value) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
+  // Lock after first rating — no changes allowed
+  if (myPollVotes[pollId]) return;
   if (!poll.responses) poll.responses = [];
-  const prev = myPollVotes[pollId];
-  if (prev && prev.startsWith('rating_')) {
-    const oldRating = parseInt(prev.split('_')[1], 10);
-    const idx = poll.responses.findIndex(r => r.value === oldRating && r.byMe);
-    if (idx >= 0) poll.responses.splice(idx, 1);
-  }
   poll.responses.push({ value, byMe: true, at: Date.now() });
   myPollVotes[pollId] = 'rating_' + value;
   render();
@@ -4003,17 +4000,9 @@ async function submitRating(pollId, value) {
 async function submitRanking(pollId, orderedIds) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
+  // Lock after first submission
+  if (myPollVotes[pollId]) return;
   const total = poll.options.length;
-  const prev = myPollVotes[pollId];
-  if (prev && prev.startsWith('ranking_')) {
-    try {
-      const prevOrder = JSON.parse(prev.replace('ranking_', ''));
-      prevOrder.forEach((id, i) => {
-        const opt = poll.options.find(o => o.id === id);
-        if (opt) opt.votes = Math.max(0, opt.votes - (total - i));
-      });
-    } catch(e) {}
-  }
   orderedIds.forEach((id, i) => {
     const opt = poll.options.find(o => o.id === id);
     if (opt) opt.votes += (total - i);
@@ -4070,6 +4059,29 @@ function confirmRanking(pollId) {
     confirmClass: 'btn-primary',
     onConfirm: () => submitRanking(pollId, order)
   });
+}
+
+function showConfirmModal(opts) {
+  const modal = document.getElementById('confirm-modal');
+  document.getElementById('confirm-modal-title').textContent = opts.title || 'Are you sure?';
+  document.getElementById('confirm-modal-body').innerHTML = opts.body || 'This action cannot be undone.';
+  const confirmBtn = document.getElementById('confirm-modal-confirm');
+  confirmBtn.textContent = opts.confirmLabel || 'Confirm';
+  confirmBtn.className = 'btn ' + (opts.confirmClass || 'btn-danger');
+  // Clone to cleanly remove previous listeners
+  const newBtn = confirmBtn.cloneNode(true);
+  confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+  newBtn.addEventListener('click', () => {
+    closeConfirmModal();
+    if (opts.onConfirm) opts.onConfirm();
+  });
+  modal.classList.add('show');
+}
+function closeConfirmModal() {
+  document.getElementById('confirm-modal').classList.remove('show');
+}
+function closeConfirmModalBackdrop(e) {
+  if (e.target.id === 'confirm-modal') closeConfirmModal();
 }
 
 document.addEventListener('keydown', (e) => {
