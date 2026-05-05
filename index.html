@@ -1392,9 +1392,10 @@
   .proj-join {
     background: #ffffff;
     color: #1e2d78;
-    padding: 14px 22px;
+    padding: 14px 18px;
     border-radius: 8px;
     text-align: center;
+    min-width: 140px;
   }
   .proj-join-label {
     font-size: 12px;
@@ -2515,7 +2516,8 @@
           <div class="proj-title" id="proj-session-title">—</div>
           <div class="proj-spacer"></div>
           <div class="proj-join">
-            <div class="proj-join-label" id="proj-join-label">Join at quizt.app</div>
+            <div id="proj-qr" style="margin-bottom: 8px; display:flex; justify-content:center;"></div>
+            <div class="proj-join-label" id="proj-join-label">Join at</div>
             <div class="proj-join-code" id="proj-join-code">—</div>
           </div>
         </div>
@@ -2905,21 +2907,6 @@ async function loadLibrarySessions() {
       `;
     }).join('');
 
-    // Delegated listener — avoids inline onclick quote issues on all devices
-    container.addEventListener('click', function(e) {
-      const card = e.target.closest('.lib-card');
-      if (!card) return;
-      const sid = card.dataset.sid;
-      const stitle = card.dataset.stitle;
-      const isEnded = card.dataset.ended === '1';
-      if (e.target.closest('.lib-delete-btn')) {
-        deleteLibrarySession(sid, stitle);
-      } else if (!isEnded && !e.target.closest('.lib-card-actions')) {
-        openLibrarySession(sid, stitle);
-      } else if (e.target.closest('.lib-open-btn')) {
-        openLibrarySession(sid, stitle);
-      }
-    });
   } catch(e) {
     container.innerHTML = `<div class="library-empty">Error: ${escapeHtml(e.message)}</div>`;
   }
@@ -3001,6 +2988,22 @@ async function loadSession(sessionId, sessionTitle, isHost) {
   const projJoinCode = document.getElementById('proj-join-code');
   if (projJoinLabel) projJoinLabel.textContent = window.location.hostname;
   if (projJoinCode) projJoinCode.textContent = sessionId;
+
+  // Generate QR code for projector
+  const projQr = document.getElementById('proj-qr');
+  if (projQr && state.joinUrl && !state.joinUrl.startsWith('(')) {
+    projQr.innerHTML = '';
+    try {
+      new QRCode(projQr, {
+        text: state.joinUrl,
+        width: 100, height: 100,
+        colorDark: '#1e2d78', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch(e) { projQr.style.display = 'none'; }
+  } else if (projQr) {
+    projQr.style.display = 'none';
+  }
 
   // Update projector footer
   const footer = document.querySelector('.proj-footer');
@@ -4835,6 +4838,29 @@ document.addEventListener('DOMContentLoaded', () => {
       drawQR();
     });
   }
+});
+
+// ── Library card click handler (attached once, permanent) ──
+// Uses event delegation so it survives loadLibrarySessions re-rendering innerHTML
+document.addEventListener('DOMContentLoaded', () => {
+  const container = document.getElementById('library-sessions-list');
+  if (!container) return;
+  container.addEventListener('click', (e) => {
+    const card = e.target.closest('.lib-card');
+    if (!card) return;
+    const sid = card.dataset.sid;
+    const stitle = card.dataset.stitle;
+    const isEnded = card.dataset.ended === '1';
+    if (e.target.closest('.lib-delete-btn')) {
+      e.stopPropagation();
+      deleteLibrarySession(sid, stitle);
+    } else if (e.target.closest('.lib-open-btn')) {
+      e.stopPropagation();
+      if (!isEnded) openLibrarySession(sid, stitle);
+    } else if (!isEnded && !e.target.closest('.lib-card-actions')) {
+      openLibrarySession(sid, stitle);
+    }
+  });
 });
 
 // ── Startup ──
