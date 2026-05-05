@@ -2933,17 +2933,29 @@ function deleteLibrarySession(id, title) {
     confirmClass: 'btn-danger',
     onConfirm: async () => {
       try {
-        await Promise.all([
-          sb.from('questions').delete().eq('session_id', id),
-          sb.from('interactions').delete().eq('session_id', id)
+        // Delete in dependency order: votes → questions/interactions → session
+        // (votes reference questions and interactions via FK)
+        const [{ error: vErr }] = await Promise.all([
+          sb.from('votes').delete().eq('session_id', id),
         ]);
-        await sb.from('sessions').delete().eq('id', id);
+        if (vErr) throw vErr;
+        const results = await Promise.all([
+          sb.from('questions').delete().eq('session_id', id),
+          sb.from('interactions').delete().eq('session_id', id),
+        ]);
+        const errs = results.map(r => r.error).filter(Boolean);
+        if (errs.length) throw errs[0];
+        const { error: sErr } = await sb.from('sessions').delete().eq('id', id);
+        if (sErr) throw sErr;
         const recent = getRecentSessions().filter(s => s.id !== id);
         localStorage.setItem(RECENT_SESSIONS_KEY, JSON.stringify(recent));
         if (localStorage.getItem(LAST_SESSION_KEY) === id) localStorage.removeItem(LAST_SESSION_KEY);
         showToast('Session deleted', true);
         loadLibrarySessions();
-      } catch(e) { showToast('Delete failed: ' + e.message, false); }
+      } catch(e) {
+        console.error('Delete error:', e);
+        showToast('Delete failed: ' + (e.message || 'unknown error'), false);
+      }
     }
   });
 }
@@ -3126,20 +3138,6 @@ async function dbDeleteQuestion(id) {
   if (error) throw error;
 }
 
-async function dbVoteQuestion(questionId, delta) {
-  // Upsert vote record (handles both new votes and re-votes cleanly)
-  const { error: ve } = await sb.from('votes').upsert({
-    session_id: currentSessionId,
-    question_id: questionId,
-    voter_token: myVoterToken,
-    value: 'upvote'
-  }, { onConflict: 'session_id,question_id,voter_token' });
-  if (ve) throw ve;
-  const q = state.questions.find(x => x.id === questionId);
-  const newVotes = Math.max(0, (q?.votes || 0) + delta);
-  const { error } = await sb.from('questions').update({ votes: newVotes }).eq('id', questionId);
-  if (error) throw error;
-}
 
 async function dbCreateInteraction(interaction) {
   const { data, error } = await sb.from('interactions').insert({
@@ -3943,6 +3941,7 @@ async function showPollOnProjector(id) {
 async function votePoll(pollId, optId) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
+  if (state.sessionStatus === 'ended') { showToast('This session has ended', false); return; }
   // Lock after first vote — no switching allowed
   if (myPollVotes[pollId]) return;
   // Optimistic update
@@ -3954,6 +3953,10 @@ async function votePoll(pollId, optId) {
     await dbCastInteractionVote(pollId, optId);
     await dbUpdateInteraction(pollId, { options: poll.options });
   } catch(e) {
+    // Rollback optimistic update
+    if (opt) opt.votes = Math.max(0, opt.votes - 1);
+    delete myPollVotes[pollId];
+    render();
     showToast('Could not save vote — check your connection', false);
     console.error('votePoll error:', e);
   }
@@ -3962,31 +3965,37 @@ async function votePoll(pollId, optId) {
 async function submitTextResponse(pollId, btn) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
+  if (state.sessionStatus === 'ended') { showToast('This session has ended', false); return; }
   const input = document.getElementById('p-text-input-' + pollId);
   if (!input) return;
   const v = input.value.trim();
-  if (!v) { showToast('Please type a response'); return; }
-  if (v.length > 280) { showToast('Too long (max 280 characters)'); return; }
-  if (poll.type === 'word_cloud' && v.split(/\s+/).length > 3) {
-    showToast('Word cloud responses should be 1-3 words'); return;
-  }
+  if (!v) { showToast('Please type a response', false); return; }
+  // Char limits: word cloud 80, open text 280
+  const maxLen = poll.type === 'word_cloud' ? 80 : 280;
+  if (v.length > maxLen) { showToast(`Too long (max ${maxLen} characters)`, false); return; }
   flashSubmitSuccess(btn);
   const newResponse = { text: v, at: Date.now() };
   if (!poll.responses) poll.responses = [];
   poll.responses.push(newResponse);
-  myPollVotes[pollId] = 'submitted_' + Date.now();
+  // NOTE: Word cloud and open text allow unlimited submissions — do NOT set myPollVotes
   input.value = '';
+  input.focus(); // keep focus so user can type next response immediately
   try {
     await dbUpdateInteraction(pollId, { responses: poll.responses });
     await dbCastInteractionVote(pollId, 'text:' + v.substring(0, 50));
-  } catch(e) { showToast('Submit failed — try again'); }
-  setTimeout(() => render(), 200);
-  showToast('Response submitted', true);
+    showToast('Response submitted', true);
+  } catch(e) {
+    // Roll back optimistic update
+    poll.responses.pop();
+    showToast('Submit failed — try again', false);
+    console.error('submitTextResponse error:', e);
+  }
 }
 
 async function submitRating(pollId, value) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
+  if (state.sessionStatus === 'ended') { showToast('This session has ended', false); return; }
   // Lock after first rating — no changes allowed
   if (myPollVotes[pollId]) return;
   if (!poll.responses) poll.responses = [];
@@ -3996,16 +4005,26 @@ async function submitRating(pollId, value) {
   try {
     await dbUpdateInteraction(pollId, { responses: poll.responses });
     await dbCastInteractionVote(pollId, 'rating:' + value);
-  } catch(e) { showToast('Rating failed — try again'); }
-  showToast(`You rated: ${value} ⭐`, true);
+    showToast(`You rated: ${value} ⭐`, true);
+  } catch(e) {
+    // Rollback
+    poll.responses.pop();
+    delete myPollVotes[pollId];
+    render();
+    showToast('Rating failed — try again', false);
+    console.error('submitRating error:', e);
+  }
 }
 
 async function submitRanking(pollId, orderedIds) {
   const poll = state.polls.find(x => x.id === pollId);
   if (!poll || poll.status !== 'live') return;
+  if (state.sessionStatus === 'ended') { showToast('This session has ended', false); return; }
   // Lock after first submission
   if (myPollVotes[pollId]) return;
   const total = poll.options.length;
+  // Snapshot original votes for rollback
+  const original = poll.options.map(o => ({ id: o.id, votes: o.votes }));
   orderedIds.forEach((id, i) => {
     const opt = poll.options.find(o => o.id === id);
     if (opt) opt.votes += (total - i);
@@ -4015,8 +4034,18 @@ async function submitRanking(pollId, orderedIds) {
   try {
     await dbUpdateInteraction(pollId, { options: poll.options });
     await dbCastInteractionVote(pollId, 'ranking:' + orderedIds.join(','));
-  } catch(e) { showToast('Ranking failed — try again'); }
-  showToast('Ranking submitted', true);
+    showToast('Ranking submitted', true);
+  } catch(e) {
+    // Rollback
+    original.forEach(o => {
+      const opt = poll.options.find(x => x.id === o.id);
+      if (opt) opt.votes = o.votes;
+    });
+    delete myPollVotes[pollId];
+    render();
+    showToast('Ranking failed — try again', false);
+    console.error('submitRanking error:', e);
+  }
 }
 
 // Tap-select ranking functions
@@ -4097,28 +4126,6 @@ document.addEventListener('keydown', (e) => {
 // ── Session library ──
 
 
-function leaveSession() {
-  showConfirmModal({
-    title: 'Leave this session?',
-    body: 'Your session stays active in Supabase. Participants can still view it. You can rejoin anytime from the setup screen.',
-    confirmLabel: 'Leave session',
-    confirmClass: 'btn-outline',
-    onConfirm: () => {
-      // Stop real-time and timers
-      if (realtimeChannel) { realtimeChannel.unsubscribe(); realtimeChannel = null; }
-      stopRefreshTimer();
-      currentSessionId = null;
-      currentSessionTitle = '';
-      isParticipantMode = false;
-      state = getEmptyState(); initialLoadDone = false;
-      presenceCount = 0;
-      updatePresenceCount(0);
-      // Go back to library
-      document.getElementById('app').style.display = 'none';
-      showLibraryPage();
-    }
-  });
-}
 
 function endSession() {
   showConfirmModal({
@@ -4500,9 +4507,16 @@ function renderParticipant() {
           if (voted) bodyHtml += `<div style="font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center;">${total} total votes · your choice is locked</div>`;
 
         } else if (type === 'word_cloud') {
-          titleHtml = voted ? 'Thanks for your response' : 'Submit a word or short phrase';
-          if (voted) {
-            const responses = p.responses || [];
+          titleHtml = 'Submit a word or short phrase (you can submit multiple)';
+          const responses = p.responses || [];
+          // Always show input — unlimited submissions allowed
+          bodyHtml = `
+            <input class="p-text-submit" id="p-text-input-${p.id}" placeholder="Your word or phrase..." maxlength="80"
+              onkeydown="if(event.key==='Enter') submitTextResponse(${p.id})" />
+            <button class="btn btn-primary btn-block" onclick="submitTextResponse(${p.id})">Submit</button>
+          `;
+          // Show live results below input if there are any
+          if (responses.length > 0) {
             const counts = {};
             responses.forEach(r => {
               const word = r.text.toLowerCase().trim();
@@ -4510,32 +4524,30 @@ function renderParticipant() {
             });
             const max = Math.max(1, ...Object.values(counts));
             const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
-            bodyHtml = `<div class="word-cloud-display">` + sorted.map(([word, count]) => {
+            bodyHtml += `<div style="font-size:11px; color:var(--muted); margin-top:14px; margin-bottom:6px;">Live word cloud (${responses.length} responses)</div>`;
+            bodyHtml += `<div class="word-cloud-display">` + sorted.map(([word, count]) => {
               const size = 13 + Math.round((count / max) * 14);
               const weight = count === max ? 700 : 500;
               return `<span class="word-cloud-word" style="font-size: ${size}px; font-weight: ${weight};">${escapeHtml(word)}</span>`;
             }).join('') + `</div>`;
-          } else {
-            bodyHtml = `
-              <input class="p-text-submit" id="p-text-input-${p.id}" placeholder="Your word(s)..." maxlength="40" />
-              <button class="btn btn-primary btn-block" onclick="submitTextResponse(${p.id})">Submit</button>
-            `;
           }
 
         } else if (type === 'open_text') {
-          titleHtml = voted ? 'Your response was submitted' : 'Share your thoughts';
-          if (voted) {
-            const responses = p.responses || [];
+          titleHtml = 'Share your thoughts (you can submit multiple)';
+          const responses = p.responses || [];
+          // Always show input — unlimited submissions allowed
+          bodyHtml = `
+            <textarea class="form-textarea" id="p-text-input-${p.id}" placeholder="Type your response..." maxlength="280"></textarea>
+            <button class="btn btn-primary btn-block" style="margin-top: 10px;" onclick="submitTextResponse(${p.id})">Submit</button>
+          `;
+          // Show recent responses below input if there are any
+          if (responses.length > 0) {
             const sorted = [...responses].sort((a,b) => b.at - a.at);
-            bodyHtml = `<div class="open-text-list" style="max-height: 240px;">` + sorted.slice(0, 10).map(r =>
+            bodyHtml += `<div style="font-size:11px; color:var(--muted); margin-top:14px; margin-bottom:6px;">Recent responses (${responses.length})</div>`;
+            bodyHtml += `<div class="open-text-list" style="max-height: 200px;">` + sorted.slice(0, 8).map(r =>
               `<div class="open-text-item">${escapeHtml(r.text)}</div>`
             ).join('') + `</div>`;
-            if (sorted.length > 10) bodyHtml += `<div style="font-size: 11px; color: var(--muted); margin-top: 8px; text-align: center;">+ ${sorted.length - 10} more on projector</div>`;
-          } else {
-            bodyHtml = `
-              <textarea class="form-textarea" id="p-text-input-${p.id}" placeholder="Type your response..." maxlength="280"></textarea>
-              <button class="btn btn-primary btn-block" style="margin-top: 10px;" onclick="submitTextResponse(${p.id})">Submit</button>
-            `;
+            if (sorted.length > 8) bodyHtml += `<div style="font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center;">+ ${sorted.length - 8} more on projector</div>`;
           }
 
         } else if (type === 'rating') {
@@ -4841,10 +4853,14 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Library card click handler (attached once, permanent) ──
-// Uses event delegation so it survives loadLibrarySessions re-rendering innerHTML
-document.addEventListener('DOMContentLoaded', () => {
+// Uses event delegation so it survives loadLibrarySessions re-rendering innerHTML.
+// No DOMContentLoaded wrapper — this script runs at end of body, DOM is already ready.
+(() => {
   const container = document.getElementById('library-sessions-list');
-  if (!container) return;
+  if (!container) {
+    console.error('library-sessions-list not found at script load');
+    return;
+  }
   container.addEventListener('click', (e) => {
     const card = e.target.closest('.lib-card');
     if (!card) return;
@@ -4861,7 +4877,7 @@ document.addEventListener('DOMContentLoaded', () => {
       openLibrarySession(sid, stitle);
     }
   });
-});
+})();
 
 // ── Startup ──
 (async () => {
