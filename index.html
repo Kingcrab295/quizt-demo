@@ -4880,22 +4880,39 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('library-sessions-list not found at script load');
     return;
   }
+  // Guard: prevent rapid double-clicks from firing both delete and open
+  let _libClickLock = false;
   container.addEventListener('click', (e) => {
+    if (_libClickLock) {
+      console.log('[Library] click ignored — lock active');
+      return;
+    }
     const card = e.target.closest('.lib-card');
     if (!card) return;
     const sid = card.dataset.sid;
     const stitle = card.dataset.stitle;
     const isEnded = card.dataset.ended === '1';
+
+    // Stop the event from bubbling further immediately
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    // Lock briefly to prevent dupes
+    _libClickLock = true;
+    setTimeout(() => { _libClickLock = false; }, 400);
+
     if (e.target.closest('.lib-delete-btn')) {
-      e.stopPropagation();
+      console.log('[Library] Delete clicked for', sid);
       deleteLibrarySession(sid, stitle);
     } else if (e.target.closest('.lib-open-btn')) {
-      e.stopPropagation();
+      console.log('[Library] Open button clicked for', sid);
       if (!isEnded) openLibrarySession(sid, stitle);
     } else if (!isEnded && !e.target.closest('.lib-card-actions')) {
+      console.log('[Library] Card body clicked for', sid);
       openLibrarySession(sid, stitle);
     }
-  });
+  }, true); // capture phase — catches the event before any other listener
 })();
 
 // ── Startup ──
