@@ -2932,29 +2932,48 @@ function deleteLibrarySession(id, title) {
     confirmLabel: 'Delete',
     confirmClass: 'btn-danger',
     onConfirm: async () => {
+      // Track exactly which step fails for diagnostic clarity
+      let step = 'starting';
       try {
-        // Delete in dependency order: votes → questions/interactions → session
-        // (votes reference questions and interactions via FK)
-        const [{ error: vErr }] = await Promise.all([
-          sb.from('votes').delete().eq('session_id', id),
-        ]);
-        if (vErr) throw vErr;
-        const results = await Promise.all([
-          sb.from('questions').delete().eq('session_id', id),
-          sb.from('interactions').delete().eq('session_id', id),
-        ]);
-        const errs = results.map(r => r.error).filter(Boolean);
-        if (errs.length) throw errs[0];
-        const { error: sErr } = await sb.from('sessions').delete().eq('id', id);
-        if (sErr) throw sErr;
+        step = 'deleting votes';
+        const vRes = await sb.from('votes').delete().eq('session_id', id);
+        if (vRes.error) throw new Error(`votes delete: ${vRes.error.message} (code: ${vRes.error.code || '?'})`);
+
+        step = 'deleting questions';
+        const qRes = await sb.from('questions').delete().eq('session_id', id);
+        if (qRes.error) throw new Error(`questions delete: ${qRes.error.message} (code: ${qRes.error.code || '?'})`);
+
+        step = 'deleting interactions';
+        const iRes = await sb.from('interactions').delete().eq('session_id', id);
+        if (iRes.error) throw new Error(`interactions delete: ${iRes.error.message} (code: ${iRes.error.code || '?'})`);
+
+        step = 'deleting session';
+        const sRes = await sb.from('sessions').delete().eq('id', id);
+        if (sRes.error) throw new Error(`sessions delete: ${sRes.error.message} (code: ${sRes.error.code || '?'})`);
+
+        // Verify deletion actually happened
+        step = 'verifying';
+        const checkRes = await sb.from('sessions').select('id').eq('id', id).maybeSingle();
+        if (checkRes.data) {
+          throw new Error(`Session still exists in database after delete. RLS policy likely blocking DELETE on sessions table.`);
+        }
+
         const recent = getRecentSessions().filter(s => s.id !== id);
         localStorage.setItem(RECENT_SESSIONS_KEY, JSON.stringify(recent));
         if (localStorage.getItem(LAST_SESSION_KEY) === id) localStorage.removeItem(LAST_SESSION_KEY);
         showToast('Session deleted', true);
         loadLibrarySessions();
       } catch(e) {
-        console.error('Delete error:', e);
-        showToast('Delete failed: ' + (e.message || 'unknown error'), false);
+        const msg = `Delete failed at step "${step}": ${e.message || e}`;
+        console.error('Delete error:', e, 'step:', step);
+        // Show error inside modal so user can actually see it
+        showConfirmModal({
+          title: 'Delete failed',
+          body: `<div style="font-size:13px; line-height:1.5;">${escapeHtml(msg)}<br><br><strong>Likely cause:</strong> Supabase Row Level Security (RLS) policies are blocking DELETE. You need to add DELETE policies for the <code>votes</code>, <code>questions</code>, <code>interactions</code>, and <code>sessions</code> tables in your Supabase dashboard.</div>`,
+          confirmLabel: 'OK',
+          confirmClass: 'btn-outline',
+          onConfirm: () => {}
+        });
       }
     }
   });
